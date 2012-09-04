@@ -6,7 +6,9 @@ include_HEADERS = \
   mpm.h
 
 libmpm_la_SOURCES = \
+  mpm_internal.h \
   mpm_compile.c \
+  mpm_utils.c \
   mpm_pcre/mpm_pcre.h \
   mpm_pcre/mpm_pcre_internal.h \
   mpm_pcre/mpm_pcre_chartables.c \
