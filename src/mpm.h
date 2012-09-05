@@ -21,6 +21,9 @@
  * \author Zoltan Herczeg <zherczeg@inf.u-szeged.hu>
  */
 
+#ifndef mpm_h
+#define mpm_h
+
 /* Internal representation of a multipattern. */
 struct mpm_re_internal;
 typedef struct mpm_re_internal mpm_re;
@@ -44,9 +47,12 @@ void mpm_free(mpm_re *re);
 #define MPM_ADD_MULTILINE               0x002
 #define MPM_ADD_DOTALL                  0x004
 #define MPM_ADD_EXTENDED                0x008
+/* This flag is ignored if MPM_VERBOSE is undefined. */
+#define MPM_ADD_VERBOSE                 0x010
 
 int mpm_add(mpm_re *re, char *pattern, int flags);
 
 /* Compile the pattern. */
 int mpm_compile(mpm_re *re);
 
+#endif // mpm_h

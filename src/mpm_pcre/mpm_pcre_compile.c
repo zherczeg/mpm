@@ -2994,6 +2994,8 @@ Arguments:
 Returns:        TRUE if possessifying is wanted
 */
 
+#if 0
+
 static BOOL
 check_auto_possessive(const pcre_uchar *previous, BOOL utf,
   const pcre_uchar *ptr, int options, compile_data *cd)
@@ -3398,6 +3400,7 @@ switch(op_code)
 /* Control does not reach here */
 }
 
+#endif
 
 
 /*************************************************
@@ -4865,6 +4868,7 @@ for (;; ptr++)
       automatically possessifying this item gains some performance in the case
       where the match fails. */
 
+#if 0
       if (!possessive_quantifier &&
           repeat_max < 0 &&
           check_auto_possessive(previous, utf, ptr + 1, options, cd))
@@ -4872,6 +4876,7 @@ for (;; ptr++)
         repeat_type = 0;    /* Force greedy */
         possessive_quantifier = TRUE;
         }
+#endif
 
       goto OUTPUT_SINGLE_REPEAT;   /* Code shared with single character types */
       }
@@ -4890,6 +4895,7 @@ for (;; ptr++)
       op_type = OP_TYPESTAR - OP_STAR;  /* Use type opcodes */
       c = *previous;
 
+#if 0
       if (!possessive_quantifier &&
           repeat_max < 0 &&
           check_auto_possessive(previous, utf, ptr + 1, options, cd))
@@ -4897,6 +4903,7 @@ for (;; ptr++)
         repeat_type = 0;    /* Force greedy */
         possessive_quantifier = TRUE;
         }
+#endif
 
       OUTPUT_SINGLE_REPEAT:
       if (*previous == OP_PROP || *previous == OP_NOTPROP)

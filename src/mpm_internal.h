@@ -21,6 +21,9 @@
  * \author Zoltan Herczeg <zherczeg@inf.u-szeged.hu>
  */
 
+#ifndef mpm_internal_h
+#define mpm_internal_h
+
 /* Must be the first include, since it must not depend on other header files. */
 #include "mpm.h"
 
@@ -62,4 +65,4 @@ struct mpm_re_internal {
 #define SETBIT(set, bit)    (((uint8_t*)(set))[(bit) >> 3] |= (1 << ((bit) & 0x7)))
 #define RESETBIT(set, bit)  (((uint8_t*)(set))[(bit) >> 3] &= ~(1 << ((bit) & 0x7)))
 
-
+#endif // mpm_internal_h

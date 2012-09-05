@@ -27,7 +27,7 @@
 
 static int test_failed = 0;
 
-int test_mpm_add(mpm_re *re, char *pattern, int flags)
+static void test_mpm_add(mpm_re *re, char *pattern, int flags)
 {
     int error_code = mpm_add(re, pattern, flags);
     if (error_code != MPM_NO_ERROR) {
@@ -36,19 +36,35 @@ int test_mpm_add(mpm_re *re, char *pattern, int flags)
     }
 }
 
-int main()
+static void verbose_mpm_add(void)
 {
-    mpm_re *re;
-    printf("Running MPM (multi=pattern matcher) tests\n\n");
-    re = mpm_create();
-    if (!re)
-        return 1;
+    mpm_re *re = mpm_create();
+    if (!re) {
+        test_failed = 1;
+        return;
+    }
 
-    test_mpm_add(re, "ab\\x00.", 0);
-    test_mpm_add(re, "[^c][^\\x00][^\\x01][^\\xfe][^\\xff].", MPM_ADD_DOTALL);
-    test_mpm_add(re, "ab[^c][^e]\\xff", MPM_ADD_CASELESS);
-    test_mpm_add(re, " [a-z] [\\x00-\\x05x-\\xff] (?i)[c-fMX] ", MPM_ADD_EXTENDED);
+    test_mpm_add(re, "ab\\x00.", MPM_ADD_VERBOSE);
+    test_mpm_add(re, "[^c][^\\x00][^\\x01][^\\xfe][^\\xff].", MPM_ADD_DOTALL | MPM_ADD_VERBOSE);
+    test_mpm_add(re, "ab[^c][^e]\\xff", MPM_ADD_CASELESS | MPM_ADD_VERBOSE);
+    test_mpm_add(re, " [a-z] [\\x00-\\x05x-\\xff] (?i)[c-fMX] ", MPM_ADD_EXTENDED | MPM_ADD_VERBOSE);
+    test_mpm_add(re, "(ab|cd(mn|op)+|ef(gh)?)*", MPM_ADD_VERBOSE);
+
+    test_mpm_add(re, "\\d\\D\\w\\W\\s\\S\\h\\H\\v\\V", MPM_ADD_CASELESS | MPM_ADD_VERBOSE);
+
+    test_mpm_add(re, "#a+?#b*#c??#d{3,6}#e{0,3}?#f{2,}#", MPM_ADD_VERBOSE);
+    test_mpm_add(re, "#a+#b*?#c?#d{3,6}?#e{0,3}#f{2,}?#", MPM_ADD_CASELESS | MPM_ADD_VERBOSE);
+    test_mpm_add(re, "#[^a]+?#[^b]*#[^c]??#[^d]{3,6}#[^e]{0,3}?#[^f]{2,}#", MPM_ADD_VERBOSE);
+    test_mpm_add(re, "#[^a]+#[^b]*?#[^c]?#[^d]{3,6}?#[^e]{0,3}#[^f]{2,}?#", MPM_ADD_CASELESS | MPM_ADD_VERBOSE);
+    test_mpm_add(re, "#\\s+?#\\w*#\\d??#\\S{3,6}#.{0,3}?#\\h{2,}#", MPM_ADD_CASELESS | MPM_ADD_VERBOSE);
+    test_mpm_add(re, "#[a-z]+?#[a-z]*#[a-z]??#[a-z]{3,6}#[a-z]{0,3}?#[a-z]{2,}#", MPM_ADD_VERBOSE);
 
     mpm_free(re);
+}
+
+int main()
+{
+    printf("Running MPM (multi-pattern matcher) tests\n\n");
+    verbose_mpm_add();
     return test_failed;
 }
