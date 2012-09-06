@@ -32,7 +32,7 @@ mpm_re * mpm_create(void)
         return NULL;
 
     re->next_id = 1;
-    re->next_term = 0;
+    re->next_term_index = 0;
     re->patterns = NULL;
 
     return re;
@@ -55,10 +55,14 @@ void mpm_free(mpm_re *re)
     free(re);
 }
 
-/* Recursive function to get the size of the DFA representation. */
-static int get_dfa_bracket_size(pcre_uchar *code, pcre_uchar **bracket_end);
+/* ----------------------------------------------------------------------- */
+/*                           DFA generator functions.                      */
+/* ----------------------------------------------------------------------- */
 
-static int get_dfa_size(pcre_uchar *code, pcre_uchar *end)
+/* Recursive function to get the size of the DFA representation. */
+static int get_nfa_bracket_size(pcre_uchar *code, pcre_uchar **bracket_end);
+
+static int get_nfa_size(pcre_uchar *code, pcre_uchar *end)
 {
     int size = 0, subexpression_size;
 
@@ -194,7 +198,7 @@ static int get_dfa_size(pcre_uchar *code, pcre_uchar *end)
         case OP_SBRA:
         case OP_BRAZERO:
         case OP_BRAMINZERO:
-            subexpression_size = get_dfa_bracket_size(code, &code);
+            subexpression_size = get_nfa_bracket_size(code, &code);
             if (subexpression_size < 0)
                 return -1;
             size += subexpression_size;
@@ -207,7 +211,7 @@ static int get_dfa_size(pcre_uchar *code, pcre_uchar *end)
     return size;
 }
 
-static int get_dfa_bracket_size(pcre_uchar *code, pcre_uchar **bracket_end)
+static int get_nfa_bracket_size(pcre_uchar *code, pcre_uchar **bracket_end)
 {
     int size = 0, subexpression_size;
     pcre_uchar *next_alternative;
@@ -223,7 +227,7 @@ static int get_dfa_bracket_size(pcre_uchar *code, pcre_uchar **bracket_end)
     next_alternative = code + GET(code, 1);
     code += 1 + LINK_SIZE;
     while (*next_alternative == OP_ALT) {
-        subexpression_size = get_dfa_size(code, next_alternative);
+        subexpression_size = get_nfa_size(code, next_alternative);
         if (subexpression_size < 0)
             return -1;
         size += subexpression_size + 2;
@@ -232,7 +236,7 @@ static int get_dfa_bracket_size(pcre_uchar *code, pcre_uchar **bracket_end)
         code += 1 + LINK_SIZE;
     }
 
-    subexpression_size = get_dfa_size(code, next_alternative);
+    subexpression_size = get_nfa_size(code, next_alternative);
     if (subexpression_size < 0)
         return -1;
     size += subexpression_size;
@@ -246,9 +250,9 @@ static int get_dfa_bracket_size(pcre_uchar *code, pcre_uchar **bracket_end)
 }
 
 /* Character set generators. */
-static void generate_set(mpm_re *re, uint32_t *word_code, int opcode, pcre_uchar *code)
+static void generate_set(int32_t *word_code, int opcode, pcre_uchar *code)
 {
-    word_code[0] = OPCODE_SET | (re->next_term++ << OPCODE_ARG_SHIFT);
+    word_code[0] = OPCODE_SET;
     int i;
 
     switch (opcode) {
@@ -340,45 +344,45 @@ static void generate_set(mpm_re *re, uint32_t *word_code, int opcode, pcre_uchar
     /* Invert the bitset. We can invert words, since the alignment does
        not affect the result. */
     for (i = 1; i < 9; i++)
-         word_code[i] = ~word_code[i];
+         ((uint32_t*)word_code)[i] = ~((uint32_t*)word_code)[i];
 }
 
-static uint32_t * generate_repeat(mpm_re *re, uint32_t *word_code, int opcode,
+static int32_t * generate_repeat(int32_t *word_code, int opcode,
     pcre_uchar *code, int min, int max)
 {
-    uint32_t *repeat_start;
+    int32_t *repeat_start;
 
     if (min == 0) {
         if (max == 0) {
-            word_code[0] = OPCODE_BRANCH | (uint32_t)11 << OPCODE_ARG_SHIFT;
-            generate_set(re, word_code + 1, opcode, code);
-            word_code[10] = OPCODE_BRANCH | (uint32_t)-9 << OPCODE_ARG_SHIFT;
+            word_code[0] = OPCODE_BRANCH | (11 << OPCODE_ARG_SHIFT);
+            generate_set(word_code + 1, opcode, code);
+            word_code[10] = OPCODE_BRANCH | (-9 << OPCODE_ARG_SHIFT);
             return word_code + 11;
         }
 
-        word_code[0] = OPCODE_BRANCH | (uint32_t)(max * 10) << OPCODE_ARG_SHIFT;
-        generate_set(re, word_code + 1, opcode, code);
+        word_code[0] = OPCODE_BRANCH | (max * 10) << OPCODE_ARG_SHIFT;
+        generate_set(word_code + 1, opcode, code);
         repeat_start = word_code + 2;
         word_code += 10;
         max--;
         while (max > 0) {
-            word_code[0] = OPCODE_BRANCH | (uint32_t)(max * 10) << OPCODE_ARG_SHIFT;
-            word_code[1] = OPCODE_SET | (re->next_term++ << OPCODE_ARG_SHIFT);
-            memcpy(word_code + 2, repeat_start, 8 * sizeof(uint32_t));
+            word_code[0] = OPCODE_BRANCH | (max * 10) << OPCODE_ARG_SHIFT;
+            word_code[1] = OPCODE_SET;
+            memcpy(word_code + 2, repeat_start, 8 * sizeof(int32_t));
             word_code += 10;
             max--;
         }
         return word_code;
     }
 
-    generate_set(re, word_code, opcode, code);
+    generate_set(word_code, opcode, code);
     repeat_start = word_code + 1;
     word_code += 9;
     min--;
     max--;
     while (min > 0) {
-        word_code[0] = OPCODE_SET | (re->next_term++ << OPCODE_ARG_SHIFT);
-        memcpy(word_code + 1, repeat_start, 8 * sizeof(uint32_t));
+        word_code[0] = OPCODE_SET;
+        memcpy(word_code + 1, repeat_start, 8 * sizeof(int32_t));
         word_code += 9;
         min--;
         max--;
@@ -387,21 +391,21 @@ static uint32_t * generate_repeat(mpm_re *re, uint32_t *word_code, int opcode,
     if (max < 0) {
         /* Since max was 0 or >= min before, this case is only possible
            if max was 0. */
-        word_code[0] = OPCODE_BRANCH | (uint32_t)-9 << OPCODE_ARG_SHIFT;
+        word_code[0] = OPCODE_BRANCH | (-9 << OPCODE_ARG_SHIFT);
         return word_code + 1;
     }
 
     while (max > 0) {
-        word_code[0] = OPCODE_BRANCH | (uint32_t)(max * 10) << OPCODE_ARG_SHIFT;
-        word_code[1] = OPCODE_SET | (re->next_term++ << OPCODE_ARG_SHIFT);
-        memcpy(word_code + 2, repeat_start, 8 * sizeof(uint32_t));
+        word_code[0] = OPCODE_BRANCH | (max * 10) << OPCODE_ARG_SHIFT;
+        word_code[1] = OPCODE_SET;
+        memcpy(word_code + 2, repeat_start, 8 * sizeof(int32_t));
         word_code += 10;
         max--;
     }
     return word_code;
 }
 
-static uint32_t * generate_char_repeat(mpm_re *re, uint32_t *word_code, pcre_uchar *code)
+static int32_t * generate_char_repeat(int32_t *word_code, pcre_uchar *code)
 {
     int min, max, opcode, type;
     pcre_uchar *offset;
@@ -459,10 +463,10 @@ static uint32_t * generate_char_repeat(mpm_re *re, uint32_t *word_code, pcre_uch
         break;
     }
 
-    return generate_repeat(re, word_code, opcode, offset, min, max);
+    return generate_repeat(word_code, opcode, offset, min, max);
 }
 
-static uint32_t * generate_range_repeat(mpm_re *re, uint32_t *word_code, pcre_uchar *code)
+static int32_t * generate_range_repeat(int32_t *word_code, pcre_uchar *code)
 {
     int min, max;
 
@@ -492,14 +496,14 @@ static uint32_t * generate_range_repeat(mpm_re *re, uint32_t *word_code, pcre_uc
         break;
     }
 
-    return generate_repeat(re, word_code, code[0], code + 1, min, max);
+    return generate_repeat(word_code, code[0], code + 1, min, max);
 }
 
 /* Recursive function to generate the DFA representation. */
-static uint32_t * generate_dfa_bracket(mpm_re *re, uint32_t *word_code,
+static int32_t * generate_nfa_bracket(int32_t *word_code,
     pcre_uchar *code, pcre_uchar **bracket_end);
 
-static uint32_t * generate_dfa(mpm_re *re, uint32_t *word_code,
+static int32_t * generate_dfa(int32_t *word_code,
     pcre_uchar *code, pcre_uchar *end)
 {
     pcre_uchar repeat;
@@ -518,7 +522,7 @@ static uint32_t * generate_dfa(mpm_re *re, uint32_t *word_code,
         case OP_HSPACE:
         case OP_NOT_VSPACE:
         case OP_VSPACE:
-            generate_set(re, word_code, code[0], NULL);
+            generate_set(word_code, code[0], NULL);
             word_code += 9;
             code++;
             break;
@@ -527,7 +531,7 @@ static uint32_t * generate_dfa(mpm_re *re, uint32_t *word_code,
         case OP_CHARI:
         case OP_NOT:
         case OP_NOTI:
-            generate_set(re, word_code, code[0], code + 1);
+            generate_set(word_code, code[0], code + 1);
             word_code += 9;
             code += 2;
             break;
@@ -562,7 +566,7 @@ static uint32_t * generate_dfa(mpm_re *re, uint32_t *word_code,
         case OP_TYPEMINPLUS:
         case OP_TYPEQUERY:
         case OP_TYPEMINQUERY:
-            word_code = generate_char_repeat(re, word_code, code);
+            word_code = generate_char_repeat(word_code, code);
             code += 2;
             break;
 
@@ -581,7 +585,7 @@ static uint32_t * generate_dfa(mpm_re *re, uint32_t *word_code,
         case OP_TYPEUPTO:
         case OP_TYPEMINUPTO:
         case OP_TYPEEXACT:
-            word_code = generate_char_repeat(re, word_code, code);
+            word_code = generate_char_repeat(word_code, code);
             code += 2 + IMM2_SIZE;
             break;
 
@@ -589,10 +593,10 @@ static uint32_t * generate_dfa(mpm_re *re, uint32_t *word_code,
         case OP_NCLASS:
             repeat = code[1 + 32 / sizeof(pcre_uchar)];
             if (repeat >= OP_CRSTAR && repeat <= OP_CRMINRANGE) {
-                word_code = generate_range_repeat(re, word_code, code);
+                word_code = generate_range_repeat(word_code, code);
                 code += 2 + 32 / sizeof(pcre_uchar) + (repeat >= OP_CRRANGE ? 2 * IMM2_SIZE : 0);
             } else {
-                generate_set(re, word_code, code[0], code + 1);
+                generate_set(word_code, code[0], code + 1);
                 word_code += 9;
                 code += 1 + 32 / sizeof(pcre_uchar);
             }
@@ -602,22 +606,22 @@ static uint32_t * generate_dfa(mpm_re *re, uint32_t *word_code,
         case OP_SBRA:
         case OP_BRAZERO:
         case OP_BRAMINZERO:
-            word_code = generate_dfa_bracket(re, word_code, code, &code);
+            word_code = generate_nfa_bracket(word_code, code, &code);
             break;
         }
     }
     return word_code;
 }
 
-static uint32_t * generate_dfa_bracket(mpm_re *re, uint32_t *word_code,
+static int32_t * generate_nfa_bracket(int32_t *word_code,
     pcre_uchar *code, pcre_uchar **bracket_end)
 {
-    uint32_t *question_mark = NULL;
-    uint32_t *first_alternative;
-    uint32_t *previous_alternative;
-    uint32_t *previous_jump = NULL;
+    int32_t *question_mark = NULL;
+    int32_t *first_alternative;
+    int32_t *previous_alternative;
+    int32_t *previous_jump = NULL;
     pcre_uchar *next_alternative;
-    uint32_t delta;
+    int32_t delta;
 
     if (code[0] == OP_BRAZERO || code[0] == OP_BRAMINZERO) {
         question_mark = word_code;
@@ -632,43 +636,129 @@ static uint32_t * generate_dfa_bracket(mpm_re *re, uint32_t *word_code,
     while (*next_alternative == OP_ALT) {
         previous_alternative = word_code;
         word_code++;
-        word_code = generate_dfa(re, word_code, code, next_alternative);
+        word_code = generate_dfa(word_code, code, next_alternative);
 
         if (!previous_jump)
             previous_jump = word_code;
-        word_code[0] = (uint32_t)(word_code - previous_jump);
+        word_code[0] = (int32_t)(word_code - previous_jump);
         previous_jump = word_code;
         word_code++;
 
-        previous_alternative[0] = OPCODE_BRANCH | (uint32_t)(word_code - previous_alternative) << OPCODE_ARG_SHIFT;
+        previous_alternative[0] = OPCODE_BRANCH | (int32_t)(word_code - previous_alternative) << OPCODE_ARG_SHIFT;
 
         code = next_alternative;
         next_alternative = code + GET(code, 1);
         code += 1 + LINK_SIZE;
     }
 
-    word_code = generate_dfa(re, word_code, code, next_alternative);
+    word_code = generate_dfa(word_code, code, next_alternative);
 
-    if (next_alternative[0] == OP_KETRMAX || next_alternative[0] == OP_KETRMIN) {
-        word_code[0] = OPCODE_BRANCH | (uint32_t)(first_alternative - word_code) << OPCODE_ARG_SHIFT;
-        word_code++;
-    }
-
-    if (question_mark)
-        question_mark[0] = OPCODE_BRANCH | (uint32_t)(word_code - question_mark) << OPCODE_ARG_SHIFT;
-
+    /* Finish alternatives first. */
     if (previous_jump) {
         do {
             delta = *previous_jump;
-            previous_jump[0] = OPCODE_JUMP | (uint32_t)(word_code - previous_jump) << OPCODE_ARG_SHIFT;
+            previous_jump[0] = OPCODE_JUMP | (int32_t)(word_code - previous_jump) << OPCODE_ARG_SHIFT;
             previous_jump -= delta;
         } while (delta > 0);
     }
+
+    /* Followed by an iterator. */
+    if (next_alternative[0] == OP_KETRMAX || next_alternative[0] == OP_KETRMIN) {
+        word_code[0] = OPCODE_BRANCH | (int32_t)(first_alternative - word_code) << OPCODE_ARG_SHIFT;
+        word_code++;
+    }
+
+    /* Finally the zero iteration. */
+    if (question_mark)
+        question_mark[0] = OPCODE_BRANCH | (int32_t)(word_code - question_mark) << OPCODE_ARG_SHIFT;
 
     if (bracket_end)
         *bracket_end = next_alternative + 1 + LINK_SIZE;
     return word_code;
 }
+
+/* ----------------------------------------------------------------------- */
+/*                           DFA generator functions.                      */
+/* ----------------------------------------------------------------------- */
+
+static void recursive_mark(int32_t *word_code)
+{
+    while (1) {
+        if (word_code[0] & OPCODE_MARKED)
+            return;
+
+        word_code[0] |= OPCODE_MARKED;
+        switch (word_code[0] & OPCODE_MASK) {
+        case OPCODE_END:
+        case OPCODE_SET:
+            return;
+        case OPCODE_JUMP:
+            word_code += word_code[0] >> OPCODE_ARG_SHIFT;
+            break;
+        case OPCODE_BRANCH:
+            recursive_mark(word_code + (word_code[0] >> OPCODE_ARG_SHIFT));
+            word_code++;
+            break;
+        }
+    }
+}
+
+static int get_number_of_reached_states(int32_t *word_code, int32_t *from)
+{
+    int opcode, reached_states = 0;
+    recursive_mark(from);
+
+    do {
+        opcode = word_code[0] & OPCODE_MASK;
+        if (word_code[0] & OPCODE_MARKED) {
+            word_code[0] -= OPCODE_MARKED;
+            if (opcode == OPCODE_SET)
+                reached_states++;
+        }
+        if (opcode == OPCODE_SET)
+            word_code += 8;
+        word_code++;
+    } while (opcode != OPCODE_END);
+
+    return reached_states;
+}
+
+static uint32_t * get_reached_states(int32_t *word_code, int32_t *from,
+    uint32_t *dfa_offset, uint32_t term_index, uint32_t *end_state)
+{
+    int opcode, reached_states = 0;
+    uint32_t *dfa_start_offset = dfa_offset;
+
+    recursive_mark(from);
+    dfa_offset++;
+    while (1) {
+        opcode = word_code[0] & OPCODE_MASK;
+
+        if (word_code[0] & OPCODE_MARKED) {
+            word_code[0] -= OPCODE_MARKED;
+            if (opcode == OPCODE_SET) {
+                *dfa_offset++ = term_index;
+                reached_states++;
+            }
+            if (opcode == OPCODE_END)
+                DFA_SET_END_STATE(end_state[0]);
+        }
+
+        if (opcode == OPCODE_SET) {
+            word_code += 8;
+            term_index++;
+        }
+        else if (opcode == OPCODE_END) {
+            dfa_start_offset[0] = reached_states;
+            return dfa_offset;
+        }
+        word_code++;
+    }
+}
+
+/* ----------------------------------------------------------------------- */
+/*                               Debug functions.                          */
+/* ----------------------------------------------------------------------- */
 
 #if defined MPM_VERBOSE && MPM_VERBOSE
 static void print_character(int character)
@@ -722,11 +812,14 @@ int mpm_add(mpm_re *re, char *pattern, int flags)
 {
     pcre *pcre_re;
     const char *errptr;
-    int erroffset, size;
+    int erroffset;
+    size_t size;
     int options = PCRE_NEWLINE_CRLF | PCRE_BSR_ANYCRLF | PCRE_NO_AUTO_CAPTURE;
     REAL_PCRE *real_pcre_re;
-    pcre_uchar *start;
-    uint32_t *word_code;
+    pcre_uchar *byte_code_start;
+    int32_t *word_code, *word_code_start;
+    uint32_t *dfa_offset;
+    uint32_t term_index;
     mpm_re_pattern *re_pattern;
 
     if (flags & MPM_ADD_CASELESS)
@@ -755,43 +848,42 @@ int mpm_add(mpm_re *re, char *pattern, int flags)
         return MPM_INVALID_PATTERN;
     }
 
-    start = (pcre_uchar *)real_pcre_re + real_pcre_re->name_table_offset
+    byte_code_start = (pcre_uchar *)real_pcre_re + real_pcre_re->name_table_offset
         + real_pcre_re->name_count * real_pcre_re->name_entry_size;
 
-    /* We do two passes over the internal representation. */
+    /* Phase 1: generate a simplified NFA representation. */
 
-    /* Calculate the length of the output. */
-    size = get_dfa_bracket_size(start, NULL);
+    /* We do two passes over the internal representation:
+       first, we calculate the length followed by the NFA generation. */
+
+    size = get_nfa_bracket_size(byte_code_start, NULL);
     if (size < 0) {
         pcre_free(pcre_re);
         return MPM_UNSUPPORTED_PATTERN;
     }
 
     /* Generate the regular expression. */
-    re_pattern = (mpm_re_pattern *)malloc(sizeof(mpm_re_pattern) + size * sizeof(uint32_t));
-    if (!re_pattern) {
+    word_code_start = (int32_t *)malloc((size + 1) * sizeof(int32_t));
+    if (!word_code_start) {
         pcre_free(pcre_re);
         return MPM_NO_MEMORY;
     }
 
-    word_code = generate_dfa_bracket(re, re_pattern->word_code, start, NULL);
-    /* The definition reserves one word_code all the time, and
-       we use it for the END opcode. */
-    word_code[0] = OPCODE_END | ((re->next_id++ - 1) << OPCODE_ARG_SHIFT);
+    word_code = generate_nfa_bracket(word_code_start, byte_code_start, NULL);
+    word_code[0] = OPCODE_END;
 
-    if (word_code != re_pattern->word_code + size) {
-        free(re_pattern);
-        pcre_free(pcre_re);
+    /* The PCRE representation is not needed anymore. */
+    pcre_free(pcre_re);
+
+    if (word_code != word_code_start + size) {
+        free(word_code_start);
         return MPM_INTERNAL_ERROR;
     }
 
-    /* Insert the pattern. */
-    re_pattern->next = re->patterns;
-    re->patterns = re_pattern;
-
 #if defined MPM_VERBOSE && MPM_VERBOSE
     if (flags & MPM_ADD_VERBOSE) {
-        word_code = re_pattern->word_code;
+        term_index = re->next_term_index;
+        word_code = word_code_start;
         printf("DFA representation of /%s/%s%s%s%s\n", pattern,
             (flags & MPM_ADD_CASELESS) ? "i" : "",
             (flags & MPM_ADD_MULTILINE) ? "m" : "",
@@ -799,29 +891,115 @@ int mpm_add(mpm_re *re, char *pattern, int flags)
             (flags & MPM_ADD_EXTENDED) ? "x" : "");
 
         do {
-            printf("%4d: ", (int)(word_code - re_pattern->word_code));
+            printf("  %5d: ", (int)(word_code - word_code_start));
             switch (word_code[0] & OPCODE_MASK) {
             case OPCODE_SET:
                 printf("[");
                 print_bitset((uint8_t *)(word_code + 1));
-                printf("] (term:%d)\n", word_code[0] >> OPCODE_ARG_SHIFT);
+                printf("] (term:%d)\n", term_index++);
                 word_code += 9;
                 break;
 
             case OPCODE_JUMP:
             case OPCODE_BRANCH:
-                size = (int32_t)(word_code[0]) >> OPCODE_ARG_SHIFT;
+                erroffset = word_code[0] >> OPCODE_ARG_SHIFT;
                 printf("%s TO %d (%s%d)\n", (word_code[0] & OPCODE_MASK) == OPCODE_JUMP ? "JUMP" : "BRANCH",
-                    (int)(word_code - re_pattern->word_code) + size, size >= 0 ? "+" : "", size);
+                    (int)(word_code - word_code_start) + erroffset, erroffset >= 0 ? "+" : "", erroffset);
                 word_code ++;
                 break;
             }
         } while ((word_code[0] & OPCODE_MASK) != OPCODE_END);
-        printf("%4d: END (id:%d)\n\n", (int)(word_code - re_pattern->word_code),
-            word_code[0] >> OPCODE_ARG_SHIFT);
+        printf("  %5d: END (id:%d)\n\n", (int)(word_code - word_code_start), re->next_id - 1);
     }
 #endif
 
-    pcre_free(pcre_re);
+    /* Phase 2: generate the DFA representation. */
+
+    /* We do two passes again: first, we calculate the length
+       followed by the DFA generation. */
+
+    /* The 0 here represents the default [1] size in mpm_re_pattern_internal. */
+    size = 0 + 1 + get_number_of_reached_states(word_code_start, word_code_start);
+    term_index = 0;
+    word_code = word_code_start;
+    while ((word_code[0] & OPCODE_MASK) != OPCODE_END) {
+        if ((word_code[0] & OPCODE_MASK) == OPCODE_SET) {
+            size += 1 + 8 + 1 + get_number_of_reached_states(word_code_start, word_code + 9);
+            term_index++;
+            word_code += 8;
+        }
+        word_code++;
+    }
+
+    re_pattern = (mpm_re_pattern *)malloc(sizeof(mpm_re_pattern) + size * sizeof(uint32_t));
+    if (!re_pattern) {
+        free(word_code_start);
+        return MPM_NO_MEMORY;
+    }
+
+    re_pattern->term_range_start = re->next_term_index;
+    re_pattern->term_range_size = term_index;
+
+    word_code = word_code_start;
+    dfa_offset = re_pattern->word_code + term_index + 1;
+    DFA_SET_OFFSET(re_pattern->word_code[0], term_index + 1);
+    term_index = 1;
+    dfa_offset = get_reached_states(word_code_start, word_code_start,
+        dfa_offset, re->next_term_index, re_pattern->word_code);
+
+    while ((word_code[0] & OPCODE_MASK) != OPCODE_END) {
+        if ((word_code[0] & OPCODE_MASK) == OPCODE_SET) {
+            DFA_SET_OFFSET(re_pattern->word_code[term_index], dfa_offset - re_pattern->word_code);
+            memcpy(dfa_offset, word_code + 1, 32);
+            dfa_offset = get_reached_states(word_code_start, word_code + 9,
+                dfa_offset + 8, re->next_term_index, re_pattern->word_code + term_index);
+            term_index++;
+            word_code += 8;
+        }
+        word_code++;
+    }
+
+    free(word_code_start);
+
+    if (dfa_offset != re_pattern->word_code + size + 1) {
+        free(re_pattern);
+        return MPM_INTERNAL_ERROR;
+    }
+
+#if defined MPM_VERBOSE && MPM_VERBOSE
+    if (flags & MPM_ADD_VERBOSE) {
+        for (term_index = 0; term_index <= re_pattern->term_range_size; term_index++) {
+            dfa_offset = re_pattern->word_code + DFA_GET_OFFSET(re_pattern->word_code[term_index]);
+            if (term_index == 0)
+                fputs("  START:", stdout);
+            else {
+                printf("  %5d: [", re->next_term_index + term_index - 1);
+                print_bitset((uint8_t *)dfa_offset);
+                putc(']', stdout);
+                putc(DFA_IS_END_STATE(re_pattern->word_code[term_index]) ? '!' : ' ', stdout);
+                dfa_offset += 8;
+            }
+
+            size = *dfa_offset++;
+            while (size--)
+                printf(" %d", (int)(*dfa_offset++));
+            printf("\n");
+        }
+        printf("\n");
+    }
+#endif
+
+    if (DFA_IS_END_STATE(re_pattern->word_code[0])) {
+        free(re_pattern);
+        return MPM_EMPTY_PATTERN;
+    }
+
+    /* Insert the pattern. */
+    re_pattern->next = re->patterns;
+    re->patterns = re_pattern;
+
+    re->next_id++;
+    re->next_term_index += re_pattern->term_range_size;
+
     return MPM_NO_ERROR;
 }

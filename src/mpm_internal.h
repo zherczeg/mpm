@@ -34,21 +34,30 @@
 /* Verbose compilation. */
 #define MPM_VERBOSE 1
 
-#define OPCODE_MASK 0x7
-#define OPCODE_ARG_SHIFT 3
+#define OPCODE_MASK         0x7
+#define OPCODE_ARG_SHIFT    4
+#define OPCODE_MARKED       0x8
 
-/* OPCODE_END | (PATTERN_ID << OPCODE_ARG_SHIFT). */
+/* OPCODE_END. */
 #define OPCODE_END          0
-/* OPCODE_SET | (TERMINAL_ID << OPCODE_ARG_SHIFT), 32 byte long bit mask (same as eight uint32_t). */
+/* OPCODE_SET, 32 byte long bit mask (same as eight uint32_t). */
 #define OPCODE_SET          1
 /* OPCODE_JUMP | (INDEX << OPCODE_ARG_SHIFT) */
 #define OPCODE_JUMP         2
 /* OPCODE_BRANCH | (INDEX << OPCODE_ARG_SHIFT) */
 #define OPCODE_BRANCH       3
 
+/* DFA manipulation macros. */
+#define DFA_IS_END_STATE(x)    ((x) & 0x1)
+#define DFA_SET_END_STATE(x)   ((x) |= 0x1)
+#define DFA_GET_OFFSET(x)      ((x) >> 1)
+#define DFA_SET_OFFSET(x, y)   ((x) = ((uint32_t)(y) << 1))
+
 /* A DFA representation of a pattern */
 typedef struct mpm_re_pattern_internal {
     struct mpm_re_pattern_internal *next;
+    uint32_t term_range_start;
+    uint32_t term_range_size;
     uint32_t word_code[1];
 } mpm_re_pattern;
 
@@ -56,7 +65,7 @@ typedef struct mpm_re_pattern_internal {
 struct mpm_re_internal {
     /* These members are used by mpm_add(). */
     uint32_t next_id;
-    uint32_t next_term;
+    uint32_t next_term_index;
     mpm_re_pattern *patterns;
 };
 

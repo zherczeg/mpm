@@ -34,6 +34,8 @@ char *mpm_error_to_string(int error_code)
         return "Internal error (should never happen)";
     case MPM_INVALID_PATTERN:
         return "Pattern cannot be compiled by PCRE";
+    case MPM_EMPTY_PATTERN:
+        return "Pattern matches to empty string";
     case MPM_UNSUPPORTED_PATTERN:
         return "Pattern is not supported by MPM";
     case MPM_RE_ALREADY_COMPILED:
