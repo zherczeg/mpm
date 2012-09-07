@@ -25,36 +25,6 @@
 #include "mpm_internal.h"
 #include "mpm_pcre_internal.h"
 
-mpm_re * mpm_create(void)
-{
-    mpm_re *re = (mpm_re *)malloc(sizeof(mpm_re));
-    if (!re)
-        return NULL;
-
-    re->next_id = 1;
-    re->next_term_index = 0;
-    re->patterns = NULL;
-
-    return re;
-}
-
-static void free_patterns(mpm_re_pattern *pattern)
-{
-    mpm_re_pattern *next;
-    while (pattern) {
-        next = pattern->next;
-        free(pattern);
-        pattern = next;
-    }
-}
-
-void mpm_free(mpm_re *re)
-{
-    if (re->patterns)
-        free_patterns(re->patterns);
-    free(re);
-}
-
 /* ----------------------------------------------------------------------- */
 /*                           DFA generator functions.                      */
 /* ----------------------------------------------------------------------- */
