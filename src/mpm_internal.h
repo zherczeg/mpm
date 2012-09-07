@@ -47,6 +47,8 @@
 /* OPCODE_BRANCH | (INDEX << OPCODE_ARG_SHIFT) */
 #define OPCODE_BRANCH       3
 
+#define CHAR_SET_SIZE          8
+
 /* DFA manipulation macros. */
 #define DFA_IS_END_STATE(x)    ((x) & 0x1)
 #define DFA_SET_END_STATE(x)   ((x) |= 0x1)
