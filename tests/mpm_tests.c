@@ -59,10 +59,13 @@ static void verbose_mpm_add(void)
     test_mpm_add(re, "#\\s+?#\\w*#\\d??#\\S{3,6}#.{0,3}?#\\h{2,}#", MPM_ADD_CASELESS | MPM_ADD_VERBOSE);
     test_mpm_add(re, "#[a-z]+?#[a-z]*#[a-z]??#[a-z]{3,6}#[a-z]{0,3}?#[a-z]{2,}#", MPM_ADD_VERBOSE);
 
-    test_mpm_add(re, "(a?b)+", MPM_ADD_VERBOSE);
     test_mpm_add(re, "", MPM_ADD_VERBOSE);
     test_mpm_add(re, "(ab)?", MPM_ADD_VERBOSE);
+    test_mpm_add(re, "(a?b)+", MPM_ADD_VERBOSE);
+    test_mpm_add(re, "(a|b*b|d+?)x", MPM_ADD_VERBOSE);
     test_mpm_add(re, "(a|(bc?)|d(ee|f)*)+", MPM_ADD_VERBOSE);
+
+    mpm_compile(re);
 
     mpm_free(re);
 }

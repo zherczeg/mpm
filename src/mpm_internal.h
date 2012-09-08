@@ -29,6 +29,8 @@
 
 #include <stdint.h>
 #include <string.h>
+#include <stdlib.h>
+#include <stdio.h>
 #include "mpm_pcre.h"
 
 /* Verbose compilation. */
@@ -48,16 +50,11 @@
 #define OPCODE_BRANCH       3
 
 #define CHAR_SET_SIZE          8
-
-/* DFA manipulation macros. */
-#define DFA_IS_END_STATE(x)    ((x) & 0x1)
-#define DFA_SET_END_STATE(x)   ((x) |= 0x1)
-#define DFA_GET_OFFSET(x)      ((x) >> 1)
-#define DFA_SET_OFFSET(x, y)   ((x) = ((uint32_t)(y) << 1))
+#define DFA_LAST_TERM          ((uint32_t)-1)
 
 /* A DFA representation of a pattern */
-typedef struct mpm_re_pattern_internal {
-    struct mpm_re_pattern_internal *next;
+typedef struct mpm_re_pattern {
+    struct mpm_re_pattern *next;
     uint32_t term_range_start;
     uint32_t term_range_size;
     uint32_t word_code[1];
@@ -71,9 +68,12 @@ struct mpm_re_internal {
     mpm_re_pattern *patterns;
 };
 
-#define SET0(set)           memset((set), 0x00, 32)
-#define SET1(set)           memset((set), 0xff, 32)
-#define SETBIT(set, bit)    (((uint8_t*)(set))[(bit) >> 3] |= (1 << ((bit) & 0x7)))
-#define RESETBIT(set, bit)  (((uint8_t*)(set))[(bit) >> 3] &= ~(1 << ((bit) & 0x7)))
+#define CHARSET_CLEAR(set)          memset((set), 0x00, 32)
+#define CHARSET_SET(set)            memset((set), 0xff, 32)
+#define CHARSET_CLEARBIT(set, bit)  (((uint8_t*)(set))[(bit) >> 3] &= ~(1 << ((bit) & 0x7)))
+#define CHARSET_SETBIT(set, bit)    (((uint8_t*)(set))[(bit) >> 3] |= (1 << ((bit) & 0x7)))
+
+/* uint32_t based bitset is used, but we need to avoid issues with alignment. */
+#define DFA_SETBIT(set, bit)        ((set)[(bit) >> 5] |= (1 << ((bit) & 0x1f)))
 
 #endif // mpm_internal_h

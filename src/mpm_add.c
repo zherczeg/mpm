@@ -21,7 +21,6 @@
  * \author Zoltan Herczeg <zherczeg@inf.u-szeged.hu>
  */
 
-#include <stdlib.h>
 #include "mpm_internal.h"
 #include "mpm_pcre_internal.h"
 
@@ -262,56 +261,56 @@ static void generate_set(int32_t *word_code, int opcode, pcre_uchar *code)
 
     case OP_ANY:
     case OP_ALLANY:
-        SET1(word_code + 1);
+        CHARSET_SET(word_code + 1);
         if (opcode == OP_ANY) {
-            RESETBIT(word_code + 1, '\r');
-            RESETBIT(word_code + 1, '\n');
+            CHARSET_CLEARBIT(word_code + 1, '\r');
+            CHARSET_CLEARBIT(word_code + 1, '\n');
         }
         return;
 
     case OP_NOT_HSPACE:
-        SET1(word_code + 1);
-        RESETBIT(word_code + 1, 0x09);
-        RESETBIT(word_code + 1, 0x20);
-        RESETBIT(word_code + 1, 0xa0);
+        CHARSET_SET(word_code + 1);
+        CHARSET_CLEARBIT(word_code + 1, 0x09);
+        CHARSET_CLEARBIT(word_code + 1, 0x20);
+        CHARSET_CLEARBIT(word_code + 1, 0xa0);
         return;
 
     case OP_HSPACE:
-        SET0(word_code + 1);
-        SETBIT(word_code + 1, 0x09);
-        SETBIT(word_code + 1, 0x20);
-        SETBIT(word_code + 1, 0xa0);
+        CHARSET_CLEAR(word_code + 1);
+        CHARSET_SETBIT(word_code + 1, 0x09);
+        CHARSET_SETBIT(word_code + 1, 0x20);
+        CHARSET_SETBIT(word_code + 1, 0xa0);
         return;
 
     case OP_NOT_VSPACE:
-        SET1(word_code + 1);
+        CHARSET_SET(word_code + 1);
         /* 0x0a - 0x0d */
         ((uint8_t*)(word_code + 1))[1] &= ~0x3c;
-        RESETBIT(word_code + 1, 0x85);
+        CHARSET_CLEARBIT(word_code + 1, 0x85);
         return;
 
     case OP_VSPACE:
-        SET0(word_code + 1);
+        CHARSET_CLEAR(word_code + 1);
         /* 0x0a - 0x0d */
         ((uint8_t*)(word_code + 1))[1] |= 0x3c;
-        SETBIT(word_code + 1, 0x85);
+        CHARSET_SETBIT(word_code + 1, 0x85);
         return;
 
     case OP_CHAR:
     case OP_CHARI:
-        SET0(word_code + 1);
-        SETBIT(word_code + 1, code[0]);
+        CHARSET_CLEAR(word_code + 1);
+        CHARSET_SETBIT(word_code + 1, code[0]);
         if (opcode == OP_CHARI) {
-            SETBIT(word_code + 1, (PRIV(default_tables) + fcc_offset)[code[0]]);
+            CHARSET_SETBIT(word_code + 1, (PRIV(default_tables) + fcc_offset)[code[0]]);
         }
         return;
 
     case OP_NOT:
     case OP_NOTI:
-        SET1(word_code + 1);
-        RESETBIT(word_code + 1, code[0]);
+        CHARSET_SET(word_code + 1);
+        CHARSET_CLEARBIT(word_code + 1, code[0]);
         if (opcode == OP_NOTI) {
-            RESETBIT(word_code + 1, (PRIV(default_tables) + fcc_offset)[code[0]]);
+            CHARSET_CLEARBIT(word_code + 1, (PRIV(default_tables) + fcc_offset)[code[0]]);
         }
         return;
 
@@ -704,13 +703,13 @@ static int get_number_of_reached_states(int32_t *word_code, int32_t *from)
 }
 
 static uint32_t * get_reached_states(int32_t *word_code, int32_t *from,
-    uint32_t *dfa_offset, uint32_t term_index, uint32_t *end_state)
+    uint32_t *dfa_offset, uint32_t term_index)
 {
     int opcode, reached_states = 0;
     uint32_t *dfa_start_offset = dfa_offset;
 
-    recursive_mark(from);
     dfa_offset++;
+    recursive_mark(from);
     while (1) {
         opcode = word_code[0] & OPCODE_MASK;
 
@@ -720,16 +719,15 @@ static uint32_t * get_reached_states(int32_t *word_code, int32_t *from,
                 *dfa_offset++ = term_index;
                 reached_states++;
             }
-            if (opcode == OPCODE_END)
-                DFA_SET_END_STATE(end_state[0]);
-        }
+        } else if (opcode == OPCODE_END)
+            dfa_start_offset[0] = 0;
 
         if (opcode == OPCODE_SET) {
             word_code += CHAR_SET_SIZE;
             term_index++;
         }
         else if (opcode == OPCODE_END) {
-            dfa_start_offset[0] = reached_states;
+            *dfa_offset++ = DFA_LAST_TERM;
             return dfa_offset;
         }
         word_code++;
@@ -800,8 +798,10 @@ int mpm_add(mpm_re *re, char *pattern, int flags)
     int32_t *word_code, *word_code_start;
     uint32_t *dfa_offset;
     uint32_t term_index;
-    uint32_t empty_string;
     mpm_re_pattern *re_pattern;
+
+    if (re->next_id == 0)
+        return MPM_RE_ALREADY_COMPILED;
 
     if (flags & MPM_ADD_CASELESS)
         options |= PCRE_CASELESS;
@@ -899,13 +899,12 @@ int mpm_add(mpm_re *re, char *pattern, int flags)
     /* We do two passes again: first, we calculate the length
        followed by the DFA generation. */
 
-    /* The 0 here represents the default [1] size in mpm_re_pattern_internal. */
-    size = 0 + get_number_of_reached_states(word_code_start, word_code_start);
+    size = 2 + get_number_of_reached_states(word_code_start, word_code_start) - 1;
     term_index = 0;
     word_code = word_code_start;
     while ((word_code[0] & OPCODE_MASK) != OPCODE_END) {
         if ((word_code[0] & OPCODE_MASK) == OPCODE_SET) {
-            size += 1 + CHAR_SET_SIZE + 1 +
+            size += 1 + CHAR_SET_SIZE + 2 +
                 get_number_of_reached_states(word_code_start, word_code + 1 + CHAR_SET_SIZE);
             term_index++;
             word_code += CHAR_SET_SIZE;
@@ -925,16 +924,17 @@ int mpm_add(mpm_re *re, char *pattern, int flags)
     word_code = word_code_start;
     dfa_offset = re_pattern->word_code + term_index;
     term_index = 0;
-    empty_string = 0;
+    dfa_offset[0] = re->next_id;
     dfa_offset = get_reached_states(word_code_start, word_code_start,
-        dfa_offset, re->next_term_index, &empty_string);
+        dfa_offset, re->next_term_index);
 
     while ((word_code[0] & OPCODE_MASK) != OPCODE_END) {
         if ((word_code[0] & OPCODE_MASK) == OPCODE_SET) {
-            DFA_SET_OFFSET(re_pattern->word_code[term_index], dfa_offset - re_pattern->word_code);
+            re_pattern->word_code[term_index] = dfa_offset - re_pattern->word_code;
             memcpy(dfa_offset, word_code + 1, 32);
+            dfa_offset[8] = re->next_id;
             dfa_offset = get_reached_states(word_code_start, word_code + 1 + CHAR_SET_SIZE,
-                dfa_offset + CHAR_SET_SIZE, re->next_term_index, re_pattern->word_code + term_index);
+                dfa_offset + CHAR_SET_SIZE, re->next_term_index);
             term_index++;
             word_code += CHAR_SET_SIZE;
         }
@@ -953,17 +953,17 @@ int mpm_add(mpm_re *re, char *pattern, int flags)
         for (term_index = 0; term_index <= re_pattern->term_range_size; term_index++) {
             if (term_index == 0) {
                 dfa_offset = re_pattern->word_code + re_pattern->term_range_size;
-                fputs((DFA_IS_END_STATE(empty_string)) ? "  START!:" : "  START :", stdout);
+                fputs(dfa_offset[0] ? "  START!:" : "  START :", stdout);
+                dfa_offset++;
             } else {
-                dfa_offset = re_pattern->word_code + DFA_GET_OFFSET(re_pattern->word_code[term_index - 1]);
-                printf("  %5d%c: [", re->next_term_index + term_index - 1, DFA_IS_END_STATE(re_pattern->word_code[term_index - 1]) ? '!' : ' ');
+                dfa_offset = re_pattern->word_code + re_pattern->word_code[term_index - 1];
+                printf("  %5d%c: [", re->next_term_index + term_index - 1, dfa_offset[8] ? '!' : ' ');
                 print_bitset((uint8_t *)dfa_offset);
                 putc(']', stdout);
-                dfa_offset += CHAR_SET_SIZE;
+                dfa_offset += CHAR_SET_SIZE + 1;
             }
 
-            size = *dfa_offset++;
-            while (size--)
+            while (*dfa_offset != DFA_LAST_TERM)
                 printf(" %d", (int)(*dfa_offset++));
             printf("\n");
         }
@@ -971,7 +971,7 @@ int mpm_add(mpm_re *re, char *pattern, int flags)
     }
 #endif
 
-    if (DFA_IS_END_STATE(empty_string)) {
+    if ((re_pattern->word_code + re_pattern->term_range_size)[0]) {
         free(re_pattern);
         return MPM_EMPTY_PATTERN;
     }
