@@ -24,7 +24,7 @@
 #include "mpm_internal.h"
 
 /* ----------------------------------------------------------------------- */
-/*                        Bitset management functions.                     */
+/*                        Hashmap management functions.                    */
 /* ----------------------------------------------------------------------- */
 
 typedef struct mpm_hashitem {
@@ -32,7 +32,7 @@ typedef struct mpm_hashitem {
     struct mpm_hashitem *next_unprocessed;
     uint32_t hash;
     uint32_t id;
-    uint32_t bitset[1];
+    uint32_t term_set[1];
 } mpm_hashitem;
 
 /* Items can only be added, but they never removed. */
@@ -42,19 +42,20 @@ typedef struct mpm_hashmap {
        length measured in 32 bit words, size measured in bytes. */
     uint32_t key_length;
     uint32_t value_length;
-    uint32_t key_size;
     uint32_t record_size;
     uint32_t allocation_size;
     uint32_t item_count;
     /* The mask must have the value of 2^n-1 */
     uint32_t mask;
     mpm_hashitem **buckets;
-    /* This bitset is added to the list by hashmap_insert. */
+    /* This term_set is added to the list by hashmap_insert. */
     uint32_t *current;
 
     /* Other global variables. */
-    /* Starting bitset. */
+    /* Starting term_set. */
     uint32_t *start;
+    uint32_t **term_map;
+    uint32_t **term_list;
     /* Not processed items. */
     struct mpm_hashitem *next_unprocessed;
 } mpm_hashmap;
@@ -63,6 +64,8 @@ typedef struct mpm_hashmap {
 
 static int hashmap_init(mpm_hashmap *map, uint32_t key_length, uint32_t value_length)
 {
+    uint32_t no_terms = key_length;
+
     if (key_length <= 0)
         key_length = 1;
     map->key_length = (key_length + 31) >> 5;
@@ -71,7 +74,6 @@ static int hashmap_init(mpm_hashmap *map, uint32_t key_length, uint32_t value_le
         value_length = 1;
     map->value_length = (key_length + 31) >> 5;
 
-    map->key_size = map->key_length * sizeof(uint32_t);
     map->record_size = (map->key_length + map->value_length) * sizeof(uint32_t);
     map->allocation_size = sizeof(mpm_hashitem) + map->record_size - sizeof(uint32_t);
 
@@ -82,6 +84,8 @@ static int hashmap_init(mpm_hashmap *map, uint32_t key_length, uint32_t value_le
     map->buckets = NULL;
     map->current = NULL;
     map->start = NULL;
+    map->term_map = NULL;
+    map->term_list = NULL;
 
     /* Allocating memory. */
     map->buckets = (mpm_hashitem **)malloc(DEFAULT_MAP_SIZE * sizeof(mpm_hashitem *));
@@ -96,6 +100,11 @@ static int hashmap_init(mpm_hashmap *map, uint32_t key_length, uint32_t value_le
     map->start = (uint32_t *)malloc(map->record_size);
     if (!map->start)
         return 1;
+
+    map->term_map = (uint32_t **)malloc(no_terms * sizeof(uint32_t *) * 2);
+    if (!map->term_map)
+        return 1;
+    map->term_list = map->term_map + no_terms;
 
     return 0;
 }
@@ -124,11 +133,13 @@ static void hashmap_free(mpm_hashmap *map)
         free(map->current);
     if (map->start)
         free(map->start);
+    if (map->term_map)
+        free(map->term_map);
 }
 
 static uint32_t hashmap_insert(mpm_hashmap *map)
 {
-    uint32_t key_length = map->key_length;
+    uint32_t record_size = map->record_size;
     uint32_t hash = 0xaaaaaaaa;
     uint8_t *data_ptr = (uint8_t*)map->current;
     uint32_t *current = map->current;
@@ -139,19 +150,19 @@ static uint32_t hashmap_insert(mpm_hashmap *map)
     int i;
 
     /* Hash from Arash Partow. */
-    key_length <<= 1;
+    record_size >>= 1;
     do {
         // Processing two bytes in one step.
         hash ^= (hash << 7) ^ ((*data_ptr) * (hash >> 3));
         hash ^= ~((hash << 11) + ((*data_ptr) ^ (hash >> 5)));
         data_ptr++;
-    } while (key_length--);
+    } while (record_size--);
 
     /* Search this item in the list. */
     item = buckets[hash & map->mask];
-    key_length = map->key_length << 2;
+    record_size = map->record_size;
     while (item) {
-        if (item->hash == hash && memcmp(current, item->bitset, key_length) == 0)
+        if (item->hash == hash && memcmp(current, item->term_set, record_size) == 0)
             return item->id;
         item = item->next;
     }
@@ -159,15 +170,21 @@ static uint32_t hashmap_insert(mpm_hashmap *map)
     /* Inserting a new item. */
     item = (mpm_hashitem *)malloc(map->allocation_size);
     if (!item)
-        return DFA_LAST_TERM;
+        return DFA_NO_DATA;
 
     item->next = buckets[hash & map->mask];
     buckets[hash & map->mask] = item;
-    item->next_unprocessed = map->next_unprocessed;
-    map->next_unprocessed = item;
+    /* Do not overwrite the first item, because that is processed currently. */
+    if (map->next_unprocessed) {
+        item->next_unprocessed = map->next_unprocessed->next_unprocessed;
+        map->next_unprocessed->next_unprocessed = item;
+    } else {
+        item->next_unprocessed = NULL;
+        map->next_unprocessed = item;
+    }
     item->hash = hash;
     item->id = map->item_count;
-    memcpy(item->bitset, current, map->record_size);
+    memcpy(item->term_set, current, record_size);
     map->item_count++;
 
     if (map->item_count < map->mask || map->mask > 0x10000000)
@@ -177,7 +194,7 @@ static uint32_t hashmap_insert(mpm_hashmap *map)
     new_mask = (map->mask << 1) | 0x1;
     new_buckets = (mpm_hashitem **)malloc((new_mask + 1) * sizeof(mpm_hashitem *));
     if (!new_buckets)
-        return DFA_LAST_TERM;
+        return DFA_NO_DATA;
     memset(new_buckets, 0, (new_mask + 1) * sizeof(mpm_hashitem *));
 
     /* Copy items to the new hash. */
@@ -196,7 +213,95 @@ static uint32_t hashmap_insert(mpm_hashmap *map)
     return item->id;
 }
 
+static int hashmap_sanity_check(mpm_hashmap *map)
+{
+    mpm_hashitem *item;
+    mpm_hashitem **buckets = map->buckets;
+    uint32_t mask = map->mask;
+    uint32_t i;
+
+    if (((mask + 1) & mask) != 0)
+        return 1;
+
+    for (i = mask + 1; i > 0; i--) {
+        item = buckets[i - 1];
+        while (item) {
+            if ((item->hash & mask) != i - 1)
+                return 1;
+            item = item->next;
+        }
+    }
+    return 0;
+}
+
 #if defined MPM_VERBOSE && MPM_VERBOSE
+static void print_terms(mpm_hashmap *map, uint32_t *base)
+{
+    uint32_t bit;
+    uint32_t *bit_set;
+    uint32_t length;
+    int32_t term;
+    int32_t last_set_term;
+    int value = 2, comma;
+
+    do {
+        term = 0;
+        last_set_term = -1;
+        bit = 0x1;
+        comma = 0;
+        if (value == 2) {
+            bit_set = base;
+            length = map->key_length * 32;
+            printf("Active terms: <");
+        } else {
+            bit_set = base + map->key_length;
+            length = map->value_length * 32;
+            printf(">, Final states: <");
+        }
+
+        do {
+            if (bit_set[0] & bit) {
+                if (last_set_term < 0) {
+                    if (comma)
+                        printf(",");
+                    comma = 1;
+                    printf("%d", term);
+                    last_set_term = term;
+                }
+            } else if (last_set_term >= 0) {
+                if (term == last_set_term + 2) {
+                    if (comma)
+                        printf(",");
+                    comma = 1;
+                    printf("%d", term - 1);
+                } else if (term > last_set_term + 2)
+                    printf("-%d", term - 1);
+                last_set_term = -1;
+            }
+
+            bit <<= 1;
+            if (bit == 0x0) {
+                bit = 0x1;
+                bit_set++;
+            }
+            term++;
+        } while (term < length);
+
+        if (last_set_term == length - 2) {
+            if (comma)
+                printf(",");
+            printf("%d", length - 1);
+        } else if (last_set_term <= length - 3 && last_set_term >= 0) {
+            if (comma)
+                printf(",");
+            printf("-%d", length - 1);
+        }
+        value--;
+    } while (value);
+
+    printf(">\n");
+}
+
 static void hashmap_stats(mpm_hashmap *map)
 {
     mpm_hashitem *item;
@@ -205,38 +310,38 @@ static void hashmap_stats(mpm_hashmap *map)
     int count, max = 0;
     uint32_t i;
 
-    if (((mask + 1) & mask) != 0)
-        printf("ERROR: Mask is not (2^n)-1\n");
-
     for (i = mask + 1; i > 0; i--) {
         item = buckets[i - 1];
         count = 0;
         while (item) {
-            if ((item->hash & mask) != i - 1)
-                printf("ERROR: Wrong hash code\n");
             count++;
             item = item->next;
         }
         if (count > max)
             max = count;
     }
-    printf("Hashmap statistics: items: %d max bucket: %d \n", map->item_count, max);
+    printf("\nHashmap statistics: items: %d max bucket: %d \n", map->item_count, max);
 }
 #endif
 
 /* ----------------------------------------------------------------------- */
-/*                               Core functions.                           */
+/*                                Main function.                           */
 /* ----------------------------------------------------------------------- */
 
-int mpm_compile(mpm_re *re)
+/* Accessing members of the hash map. */
+#define MAP(id) (map_data.id)
+
+int mpm_compile(mpm_re *re, int flags)
 {
     mpm_hashmap map_data;
     mpm_hashmap *map = &map_data;
     mpm_re_pattern *pattern;
     uint32_t *word_code;
-    uint32_t *current;
-    uint32_t *start;
-    uint32_t record_size;
+    uint32_t *bit_set, *bit_set_end, *other_bit_set;
+    uint32_t term_base, term_bits;
+    uint32_t **term, **last_term;
+    uint32_t available_chars[CHAR_SET_SIZE], consumed_chars[CHAR_SET_SIZE];
+    uint32_t i, id;
 
     if (re->next_id == 0)
         return MPM_RE_ALREADY_COMPILED;
@@ -246,25 +351,131 @@ int mpm_compile(mpm_re *re)
         return MPM_NO_MEMORY;
     }
 
-    record_size = map->record_size;
-    start = map->start;
-    current = map->current;
-
-    memset(start, 0, record_size);
+    /* Initialize data structures. */
+    memset(MAP(start), 0, MAP(record_size));
     pattern = re->patterns;
     while (pattern) {
         word_code = pattern->word_code + pattern->term_range_size + 1;
-        while (word_code[0] != DFA_LAST_TERM) {
-            DFA_SETBIT(start, word_code[0]);
+        while (word_code[0] != DFA_NO_DATA) {
+            DFA_SETBIT(MAP(start), word_code[0]);
             word_code++;
         }
+        term = MAP(term_map) + pattern->term_range_start;
+        word_code = pattern->word_code;
+        last_term = term + pattern->term_range_size;
+        while (term < last_term)
+            *term++ = pattern->word_code + *word_code++;
         pattern = pattern->next;
     }
 
-    memcpy(current, start, record_size);
+    memcpy(MAP(current), MAP(start), MAP(record_size));
     hashmap_insert(map);
 
+    do {
+#if defined MPM_VERBOSE && MPM_VERBOSE
+        if (flags & MPM_COMPILE_VERBOSE) {
+            printf("Processing %4d: ", MAP(next_unprocessed)->id);
+            print_terms(map, MAP(next_unprocessed)->term_set);
+        }
+#endif
 
+        /* Decoding the set of terms. */
+        last_term = MAP(term_list);
+        term_base = 0;
+        bit_set = MAP(next_unprocessed)->term_set;
+        bit_set_end = bit_set + MAP(key_length);
+        while (bit_set < bit_set_end) {
+            if (!bit_set[0]) {
+                term_base += 32;
+                bit_set++;
+            }
+
+            term_bits = *bit_set++;
+            do {
+                if (term_bits & 0x1)
+                    *last_term++ = MAP(term_map)[term_base];
+                term_bits >>= 1;
+                term_base++;
+                /* The loop stops when term_base is divisible by 32. */
+            } while (term_base & 0x1f);
+        }
+
+        memset(available_chars, 0xff, CHAR_SET_SIZE * sizeof(uint32_t));
+
+        for (i = 0; i < 256; i++) {
+            if (!CHARSET_GETBIT(available_chars, i))
+                continue;
+
+            /* Get those characters, which have the same bit set,
+               and the list of reachable states. */
+            memset(consumed_chars, 0xff, CHAR_SET_SIZE * sizeof(uint32_t));
+            memcpy(MAP(current), MAP(start), MAP(record_size));
+            term = MAP(term_list);
+
+            while (term < last_term) {
+                bit_set = term[0];
+                bit_set_end = bit_set + CHAR_SET_SIZE;
+                other_bit_set = consumed_chars;
+
+                if (CHARSET_GETBIT(bit_set, i)) {
+                    while (bit_set < bit_set_end)
+                        *other_bit_set++ &= *bit_set++;
+
+                    word_code = term[0] + CHAR_SET_SIZE;
+                    if (word_code[0] != DFA_NO_DATA)
+                        DFA_SETBIT(MAP(current) + MAP(key_length), word_code[0]);
+
+                    word_code ++;
+                    while (word_code[0] != DFA_NO_DATA) {
+                        DFA_SETBIT(MAP(current), word_code[0]);
+                        word_code++;
+                    }
+                } else {
+                    while (bit_set < bit_set_end)
+                        *other_bit_set++ &= ~(*bit_set++);
+                }
+
+                term++;
+            }
+
+            bit_set = consumed_chars;
+            bit_set_end = bit_set + CHAR_SET_SIZE;
+            other_bit_set = available_chars;
+            while (bit_set < bit_set_end) {
+                /* Sanity check. */
+                if (~other_bit_set[0] & bit_set[0]) {
+                    hashmap_free(map);
+                    return MPM_INTERNAL_ERROR;
+                }
+                *other_bit_set++ -= *bit_set++;
+            }
+
+            id = hashmap_insert(map);
+            if (id == DFA_NO_DATA) {
+                    hashmap_free(map);
+                    return MPM_NO_MEMORY;
+            }
+
+#if defined MPM_VERBOSE && MPM_VERBOSE
+            if (flags & MPM_COMPILE_VERBOSE) {
+                printf("  For [");
+                mpm_print_char_range((uint8_t *)consumed_chars);
+                printf("] next state: %d\n", (int)id);
+            }
+#endif
+        }
+        MAP(next_unprocessed) = MAP(next_unprocessed)->next_unprocessed;
+    } while (MAP(next_unprocessed));
+
+    if (hashmap_sanity_check(map)) {
+        hashmap_free(map);
+        return MPM_INTERNAL_ERROR;
+    }
+
+#if defined MPM_VERBOSE && MPM_VERBOSE
+    if (flags & MPM_COMPILE_VERBOSE)
+        hashmap_stats(map);
+#endif
 
     hashmap_free(map);
 

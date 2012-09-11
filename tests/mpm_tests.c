@@ -36,6 +36,15 @@ static void test_mpm_add(mpm_re *re, char *pattern, int flags)
     }
 }
 
+static void test_mpm_compile(mpm_re *re, int flags)
+{
+    int error_code = mpm_compile(re, flags);
+    if (error_code != MPM_NO_ERROR) {
+        printf("WARNING: mpm_add is failed: %s\n\n", mpm_error_to_string(error_code));
+        test_failed = 1;
+    }
+}
+
 static void verbose_mpm_add(void)
 {
     mpm_re *re = mpm_create();
@@ -44,6 +53,7 @@ static void verbose_mpm_add(void)
         return;
     }
 
+/*
     test_mpm_add(re, "m\\x00\\xff.", MPM_ADD_VERBOSE);
     test_mpm_add(re, "[^c][^\\x00][^\\x01][^\\xfe][^\\xff].", MPM_ADD_DOTALL | MPM_ADD_VERBOSE);
     test_mpm_add(re, "ab[^c][^e]\\xff", MPM_ADD_CASELESS | MPM_ADD_VERBOSE);
@@ -61,11 +71,13 @@ static void verbose_mpm_add(void)
 
     test_mpm_add(re, "", MPM_ADD_VERBOSE);
     test_mpm_add(re, "(ab)?", MPM_ADD_VERBOSE);
-    test_mpm_add(re, "(a?b)+", MPM_ADD_VERBOSE);
-    test_mpm_add(re, "(a|b*b|d+?)x", MPM_ADD_VERBOSE);
-    test_mpm_add(re, "(a|(bc?)|d(ee|f)*)+", MPM_ADD_VERBOSE);
+*/
 
-    mpm_compile(re);
+    test_mpm_add(re, "([a0-9]?b)+", MPM_ADD_VERBOSE);
+    test_mpm_add(re, "([a0-9]|b*b|[dA-D]+?)x", MPM_ADD_VERBOSE);
+    test_mpm_add(re, "([a0-9]|(bc?)|[dC-F](ee|f)*)+", MPM_ADD_VERBOSE);
+
+    test_mpm_compile(re, MPM_COMPILE_VERBOSE);
 
     mpm_free(re);
 }

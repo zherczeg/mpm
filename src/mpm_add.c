@@ -25,7 +25,7 @@
 #include "mpm_pcre_internal.h"
 
 /* ----------------------------------------------------------------------- */
-/*                           DFA generator functions.                      */
+/*                           NFA generator functions.                      */
 /* ----------------------------------------------------------------------- */
 
 /* Recursive function to get the size of the DFA representation. */
@@ -720,14 +720,14 @@ static uint32_t * get_reached_states(int32_t *word_code, int32_t *from,
                 reached_states++;
             }
         } else if (opcode == OPCODE_END)
-            dfa_start_offset[0] = 0;
+            dfa_start_offset[0] = DFA_NO_DATA;
 
         if (opcode == OPCODE_SET) {
             word_code += CHAR_SET_SIZE;
             term_index++;
         }
         else if (opcode == OPCODE_END) {
-            *dfa_offset++ = DFA_LAST_TERM;
+            *dfa_offset++ = DFA_NO_DATA;
             return dfa_offset;
         }
         word_code++;
@@ -735,56 +735,8 @@ static uint32_t * get_reached_states(int32_t *word_code, int32_t *from,
 }
 
 /* ----------------------------------------------------------------------- */
-/*                               Debug functions.                          */
+/*                                Main function.                           */
 /* ----------------------------------------------------------------------- */
-
-#if defined MPM_VERBOSE && MPM_VERBOSE
-static void print_character(int character)
-{
-    if (character >= 0x20 && character <= 0x7f && character != '-')
-        printf("%c", character);
-    else if (character <= 0xf)
-        printf("\\x0%x", character);
-    else
-        printf("\\x%x", character);
-}
-
-static void print_bitset(uint8_t *bitset)
-{
-    int bit = 0x1;
-    int character = 0;
-    int last_set_character = -1;
-
-    do {
-        if (bitset[0] & bit) {
-            if (last_set_character < 0) {
-                print_character(character);
-                last_set_character = character;
-            }
-        } else if (last_set_character >= 0) {
-            if (character == last_set_character + 2)
-                print_character(character - 1);
-            else if (character > last_set_character + 2) {
-                printf("-");
-                print_character(character - 1);
-            }
-            last_set_character = -1;
-        }
-
-        bit <<= 1;
-        if (bit == 0x100) {
-            bit = 0x01;
-            bitset++;
-        }
-        character++;
-    } while (character < 256);
-
-    if (last_set_character == 254)
-        printf("\\xff");
-    else if (last_set_character <= 253 && last_set_character >= 0)
-        printf("-\\xff");
-}
-#endif
 
 int mpm_add(mpm_re *re, char *pattern, int flags)
 {
@@ -876,7 +828,7 @@ int mpm_add(mpm_re *re, char *pattern, int flags)
             switch (word_code[0] & OPCODE_MASK) {
             case OPCODE_SET:
                 printf("[");
-                print_bitset((uint8_t *)(word_code + 1));
+                mpm_print_char_range((uint8_t *)(word_code + 1));
                 printf("] (term:%d)\n", term_index++);
                 word_code += 1 + CHAR_SET_SIZE;
                 break;
@@ -924,7 +876,7 @@ int mpm_add(mpm_re *re, char *pattern, int flags)
     word_code = word_code_start;
     dfa_offset = re_pattern->word_code + term_index;
     term_index = 0;
-    dfa_offset[0] = re->next_id;
+    dfa_offset[0] = re->next_id - 1;
     dfa_offset = get_reached_states(word_code_start, word_code_start,
         dfa_offset, re->next_term_index);
 
@@ -932,7 +884,7 @@ int mpm_add(mpm_re *re, char *pattern, int flags)
         if ((word_code[0] & OPCODE_MASK) == OPCODE_SET) {
             re_pattern->word_code[term_index] = dfa_offset - re_pattern->word_code;
             memcpy(dfa_offset, word_code + 1, 32);
-            dfa_offset[8] = re->next_id;
+            dfa_offset[8] = re->next_id - 1;
             dfa_offset = get_reached_states(word_code_start, word_code + 1 + CHAR_SET_SIZE,
                 dfa_offset + CHAR_SET_SIZE, re->next_term_index);
             term_index++;
@@ -953,17 +905,17 @@ int mpm_add(mpm_re *re, char *pattern, int flags)
         for (term_index = 0; term_index <= re_pattern->term_range_size; term_index++) {
             if (term_index == 0) {
                 dfa_offset = re_pattern->word_code + re_pattern->term_range_size;
-                fputs(dfa_offset[0] ? "  START!:" : "  START :", stdout);
+                fputs(dfa_offset[0] != DFA_NO_DATA ? "  START!:" : "  START :", stdout);
                 dfa_offset++;
             } else {
                 dfa_offset = re_pattern->word_code + re_pattern->word_code[term_index - 1];
-                printf("  %5d%c: [", re->next_term_index + term_index - 1, dfa_offset[8] ? '!' : ' ');
-                print_bitset((uint8_t *)dfa_offset);
+                printf("  %5d%c: [", re->next_term_index + term_index - 1, dfa_offset[8] != DFA_NO_DATA ? '!' : ' ');
+                mpm_print_char_range((uint8_t *)dfa_offset);
                 putc(']', stdout);
                 dfa_offset += CHAR_SET_SIZE + 1;
             }
 
-            while (*dfa_offset != DFA_LAST_TERM)
+            while (*dfa_offset != DFA_NO_DATA)
                 printf(" %d", (int)(*dfa_offset++));
             printf("\n");
         }
@@ -971,7 +923,7 @@ int mpm_add(mpm_re *re, char *pattern, int flags)
     }
 #endif
 
-    if ((re_pattern->word_code + re_pattern->term_range_size)[0]) {
+    if ((re_pattern->word_code + re_pattern->term_range_size)[0] != DFA_NO_DATA) {
         free(re_pattern);
         return MPM_EMPTY_PATTERN;
     }

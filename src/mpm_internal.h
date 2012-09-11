@@ -50,7 +50,7 @@
 #define OPCODE_BRANCH       3
 
 #define CHAR_SET_SIZE          8
-#define DFA_LAST_TERM          ((uint32_t)-1)
+#define DFA_NO_DATA            ((uint32_t)-1)
 
 /* A DFA representation of a pattern */
 typedef struct mpm_re_pattern {
@@ -70,10 +70,15 @@ struct mpm_re_internal {
 
 #define CHARSET_CLEAR(set)          memset((set), 0x00, 32)
 #define CHARSET_SET(set)            memset((set), 0xff, 32)
+#define CHARSET_GETBIT(set, bit)    (((uint8_t*)(set))[(bit) >> 3] & (1 << ((bit) & 0x7)))
 #define CHARSET_CLEARBIT(set, bit)  (((uint8_t*)(set))[(bit) >> 3] &= ~(1 << ((bit) & 0x7)))
 #define CHARSET_SETBIT(set, bit)    (((uint8_t*)(set))[(bit) >> 3] |= (1 << ((bit) & 0x7)))
 
 /* uint32_t based bitset is used, but we need to avoid issues with alignment. */
 #define DFA_SETBIT(set, bit)        ((set)[(bit) >> 5] |= (1 << ((bit) & 0x1f)))
+
+#if defined MPM_VERBOSE && MPM_VERBOSE
+void mpm_print_char_range(uint8_t *bitset);
+#endif
 
 #endif // mpm_internal_h

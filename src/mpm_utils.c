@@ -23,6 +23,10 @@
 
 #include "mpm_internal.h"
 
+/* ----------------------------------------------------------------------- */
+/*                               Core functions.                           */
+/* ----------------------------------------------------------------------- */
+
 mpm_re * mpm_create(void)
 {
     mpm_re *re = (mpm_re *)malloc(sizeof(mpm_re));
@@ -74,3 +78,56 @@ char *mpm_error_to_string(int error_code)
         return "Unknown error";
     }
 }
+
+/* ----------------------------------------------------------------------- */
+/*                             Verbose functions.                          */
+/* ----------------------------------------------------------------------- */
+
+#if defined MPM_VERBOSE && MPM_VERBOSE
+static void print_character(int character)
+{
+    if (character >= 0x20 && character <= 0x7f && character != '-')
+        printf("%c", character);
+    else if (character <= 0xf)
+        printf("\\x0%x", character);
+    else
+        printf("\\x%x", character);
+}
+
+/* Exported function. */
+void mpm_print_char_range(uint8_t *bitset)
+{
+    int bit = 0x01;
+    int character = 0;
+    int last_set_character = -1;
+
+    do {
+        if (bitset[0] & bit) {
+            if (last_set_character < 0) {
+                print_character(character);
+                last_set_character = character;
+            }
+        } else if (last_set_character >= 0) {
+            if (character == last_set_character + 2)
+                print_character(character - 1);
+            else if (character > last_set_character + 2) {
+                printf("-");
+                print_character(character - 1);
+            }
+            last_set_character = -1;
+        }
+
+        bit <<= 1;
+        if (bit == 0x100) {
+            bit = 0x01;
+            bitset++;
+        }
+        character++;
+    } while (character < 256);
+
+    if (last_set_character == 254)
+        printf("\\xff");
+    else if (last_set_character <= 253 && last_set_character >= 0)
+        printf("-\\xff");
+}
+#endif

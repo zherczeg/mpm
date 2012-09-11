@@ -53,7 +53,9 @@ void mpm_free(mpm_re *re);
 
 int mpm_add(mpm_re *re, char *pattern, int flags);
 
+#define MPM_COMPILE_VERBOSE             0x001
+
 /* Compile the pattern. */
-int mpm_compile(mpm_re *re);
+int mpm_compile(mpm_re *re, int flags);
 
 #endif // mpm_h
