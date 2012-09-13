@@ -23,6 +23,7 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 #include "mpm.h"
 
 static int test_failed = 0;
@@ -43,6 +44,11 @@ static void test_mpm_compile(mpm_re *re, int flags)
         printf("WARNING: mpm_add is failed: %s\n\n", mpm_error_to_string(error_code));
         test_failed = 1;
     }
+}
+
+static void test_mpm_exec(mpm_re *re, char *pattern)
+{
+    printf("Patternn: /%s/ %s\n", pattern, mpm_exec(re, pattern, strlen(pattern)) ? "matches" : "does not match");
 }
 
 static void verbose_mpm_add(void)
@@ -73,12 +79,20 @@ static void verbose_mpm_add(void)
     test_mpm_add(re, "(ab)?", MPM_ADD_VERBOSE);
 */
 
+/*
     test_mpm_add(re, "([a0-9]?b)+", MPM_ADD_VERBOSE);
     test_mpm_add(re, "([a0-9]|b*b|[dA-D]+?)x", MPM_ADD_VERBOSE);
     test_mpm_add(re, "([a0-9]|(bc?)|[dC-F](ee|f)*)+", MPM_ADD_VERBOSE);
+*/
 
-    test_mpm_compile(re, MPM_COMPILE_VERBOSE);
+    test_mpm_add(re, "aa.*bb", MPM_ADD_VERBOSE);
+    test_mpm_add(re, "\\s+b+\\w+", MPM_ADD_VERBOSE);
+    test_mpm_add(re, "mm(a.+)+dd", MPM_ADD_VERBOSE);
+    test_mpm_add(re, "(de.*){2}", MPM_ADD_VERBOSE);
 
+    test_mpm_compile(re, MPM_ALL_END_STATES | MPM_COMPILE_VERBOSE);
+
+    test_mpm_exec(re, "mmaa bbdedde");
     mpm_free(re);
 }
 

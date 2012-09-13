@@ -36,6 +36,12 @@
 /* Verbose compilation. */
 #define MPM_VERBOSE 1
 
+/* Eight, 32 bit words. */
+#define CHAR_SET_SIZE          8
+/* A non-valid ID or offset. */
+#define DFA_NO_DATA            ((uint32_t)-1)
+
+/* Opcode flags. */
 #define OPCODE_MASK         0x7
 #define OPCODE_ARG_SHIFT    4
 #define OPCODE_MARKED       0x8
@@ -49,9 +55,6 @@
 /* OPCODE_BRANCH | (INDEX << OPCODE_ARG_SHIFT) */
 #define OPCODE_BRANCH       3
 
-#define CHAR_SET_SIZE          8
-#define DFA_NO_DATA            ((uint32_t)-1)
-
 /* A DFA representation of a pattern */
 typedef struct mpm_re_pattern {
     struct mpm_re_pattern *next;
@@ -60,12 +63,17 @@ typedef struct mpm_re_pattern {
     uint32_t word_code[1];
 } mpm_re_pattern;
 
+/* Internal flags. */
+#define ALL_END_STATES      0x001
+
 /* Internal representation of the regular expression. */
 struct mpm_re_internal {
     /* These members are used by mpm_add(). */
     uint32_t next_id;
     uint32_t next_term_index;
+    uint32_t flags;
     mpm_re_pattern *patterns;
+    uint8_t* compiled_pattern;
 };
 
 typedef struct mpm_offset_map {
@@ -82,6 +90,10 @@ typedef struct mpm_offset_map {
 
 /* uint32_t based bitset is used, but we need to avoid issues with alignment. */
 #define DFA_SETBIT(set, bit)        ((set)[(bit) >> 5] |= (1 << ((bit) & 0x1f)))
+#define DFA_GET_BIT(set, bit)       ((set)[(bit) >> 5] & (1 << ((bit) & 0x1f)))
+
+/* Private, shared functions. */
+void mpm_free_patterns(mpm_re_pattern *pattern);
 
 #if defined MPM_VERBOSE && MPM_VERBOSE
 void mpm_print_char_range(uint8_t *bitset);

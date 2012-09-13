@@ -48,8 +48,8 @@ typedef struct mpm_id_offset_map {
 typedef struct mpm_hashmap {
     /* The map is optimized for 32 bit words.
        length measured in 32 bit words, size measured in bytes. */
-    uint32_t key_length;
-    uint32_t value_length;
+    uint32_t term_set_length;
+    uint32_t end_state_set_length;
     uint32_t record_size;
     uint32_t allocation_size;
     uint32_t item_count;
@@ -71,19 +71,19 @@ typedef struct mpm_hashmap {
 
 #define DEFAULT_MAP_SIZE 1024
 
-static int hashmap_init(mpm_hashmap *map, uint32_t key_length, uint32_t value_length)
+static int hashmap_init(mpm_hashmap *map, uint32_t term_set_length, uint32_t end_state_set_length)
 {
-    uint32_t no_terms = key_length;
+    uint32_t no_terms = term_set_length;
 
-    if (key_length <= 0)
-        key_length = 1;
-    map->key_length = (key_length + 31) >> 5;
+    if (term_set_length <= 0)
+        term_set_length = 1;
+    map->term_set_length = (term_set_length + 31) >> 5;
 
-    if (value_length <= 0)
-        value_length = 1;
-    map->value_length = (key_length + 31) >> 5;
+    if (end_state_set_length <= 0)
+        end_state_set_length = 1;
+    map->end_state_set_length = (term_set_length + 31) >> 5;
 
-    map->record_size = (map->key_length + map->value_length) * sizeof(uint32_t);
+    map->record_size = (map->term_set_length + map->end_state_set_length) * sizeof(uint32_t);
     map->allocation_size = sizeof(mpm_hashitem) + map->record_size - sizeof(uint32_t);
 
     map->item_count = 0;
@@ -107,7 +107,7 @@ static int hashmap_init(mpm_hashmap *map, uint32_t key_length, uint32_t value_le
     if (!map->current)
         return 1;
 
-    map->start = map->current + (map->key_length + map->value_length);
+    map->start = map->current + (map->term_set_length + map->end_state_set_length);
 
     map->term_map = (uint32_t **)malloc(no_terms * sizeof(uint32_t *) * 2);
     if (!map->term_map)
@@ -157,6 +157,7 @@ static uint32_t hashmap_insert(mpm_hashmap *map)
     uint32_t new_mask;
     mpm_hashitem **new_buckets;
     mpm_hashitem **buckets = map->buckets;
+    uint32_t id;
     int i;
 
     /* Hash from Arash Partow. */
@@ -203,6 +204,7 @@ static uint32_t hashmap_insert(mpm_hashmap *map)
         return item->id;
 
     /* Resize the hash array. */
+    id = item->id;
     new_mask = (map->mask << 1) | 0x1;
     new_buckets = (mpm_hashitem **)malloc((new_mask + 1) * sizeof(mpm_hashitem *));
     if (!new_buckets)
@@ -222,7 +224,7 @@ static uint32_t hashmap_insert(mpm_hashmap *map)
     free(buckets);
     map->mask = new_mask;
     map->buckets = new_buckets;
-    return item->id;
+    return id;
 }
 
 static int hashmap_sanity_check(mpm_hashmap *map)
@@ -263,11 +265,11 @@ static void print_terms(mpm_hashmap *map, uint32_t *base)
         comma = 0;
         if (value == 2) {
             bit_set = base;
-            length = map->key_length * 32;
+            length = map->term_set_length * 32;
             printf("Active terms: <");
         } else {
-            bit_set = base + map->key_length;
-            length = map->value_length * 32;
+            bit_set = base + map->term_set_length;
+            length = map->end_state_set_length * 32;
             printf(">, Final states: <");
         }
 
@@ -332,7 +334,7 @@ static void hashmap_stats(mpm_hashmap *map)
         if (count > max)
             max = count;
     }
-    printf("\nHashmap statistics: items: %d max bucket: %d \n", map->item_count, max);
+    printf("\nHashmap statistics: items: %d buckets: %d max bucket: %d \n", map->item_count, mask + 1, max);
 }
 #endif
 
@@ -349,15 +351,18 @@ int mpm_compile(mpm_re *re, int flags)
     mpm_hashmap *map = &map_data;
     mpm_re_pattern *pattern;
     mpm_hashitem *item;
+    mpm_id_offset_map *id_offset, *last_id_offset;
     uint32_t *word_code;
     uint32_t *bit_set, *bit_set_end, *other_bit_set;
     uint32_t term_base, term_bits;
     uint32_t **term, **last_term;
-    uint32_t available_chars[CHAR_SET_SIZE], consumed_chars[CHAR_SET_SIZE];
+    uint32_t *id_index, *last_id_index;
+    uint8_t *compiled_pattern;
     uint8_t id_map[256];
     uint32_t id_indices[256];
-    uint32_t *next_id_index;
-    uint32_t i, j, id;
+    uint32_t available_chars[CHAR_SET_SIZE];
+    uint32_t consumed_chars[CHAR_SET_SIZE];
+    uint32_t i, j, id, offset;
 
     if (re->next_id == 0)
         return MPM_RE_ALREADY_COMPILED;
@@ -399,7 +404,7 @@ int mpm_compile(mpm_re *re, int flags)
         last_term = MAP(term_list);
         term_base = 0;
         bit_set = MAP(next_unprocessed)->term_set;
-        bit_set_end = bit_set + MAP(key_length);
+        bit_set_end = bit_set + MAP(term_set_length);
         while (bit_set < bit_set_end) {
             if (!bit_set[0]) {
                 term_base += 32;
@@ -417,6 +422,7 @@ int mpm_compile(mpm_re *re, int flags)
         }
 
         memset(available_chars, 0xff, CHAR_SET_SIZE * sizeof(uint32_t));
+        last_id_index = id_indices;
 
         for (i = 0; i < 256; i++) {
             if (!CHARSET_GETBIT(available_chars, i))
@@ -427,7 +433,10 @@ int mpm_compile(mpm_re *re, int flags)
             memset(consumed_chars, 0xff, CHAR_SET_SIZE * sizeof(uint32_t));
             memcpy(MAP(current), MAP(start), MAP(record_size));
             term = MAP(term_list);
-            next_id_index = id_indices;
+
+            if (flags & MPM_ALL_END_STATES)
+                memcpy(MAP(current) + MAP(term_set_length), MAP(next_unprocessed)->term_set +
+                    MAP(term_set_length), MAP(end_state_set_length) << 2);
 
             while (term < last_term) {
                 bit_set = term[0];
@@ -440,7 +449,7 @@ int mpm_compile(mpm_re *re, int flags)
 
                     word_code = term[0] + CHAR_SET_SIZE;
                     if (word_code[0] != DFA_NO_DATA)
-                        DFA_SETBIT(MAP(current) + MAP(key_length), word_code[0]);
+                        DFA_SETBIT(MAP(current) + MAP(term_set_length), word_code[0]);
 
                     word_code ++;
                     while (word_code[0] != DFA_NO_DATA) {
@@ -467,19 +476,26 @@ int mpm_compile(mpm_re *re, int flags)
                 *other_bit_set++ -= *bit_set++;
             }
 
-            id = hashmap_insert(map);
-            if (id == DFA_NO_DATA) {
+            if (flags & MPM_ALL_END_STATES) {
+                id = DFA_NO_DATA;
+                bit_set = MAP(current) + MAP(term_set_length);
+                /* This function will be more sophisticated in the future. */
+                for (j = re->next_id - 1; j > 0; j--)
+                    if (!DFA_GET_BIT(bit_set, j - 1)) {
+                        id = hashmap_insert(map);
+                        if (id == DFA_NO_DATA) {
+                            hashmap_free(map);
+                            return MPM_NO_MEMORY;
+                        }
+                        break;
+                    }
+            } else {
+                id = hashmap_insert(map);
+                if (id == DFA_NO_DATA) {
                     hashmap_free(map);
                     return MPM_NO_MEMORY;
+                }
             }
-
-            *next_id_index = id;
-            id = next_id_index - id_indices;
-            next_id_index++;
-            for (j = 0; j < 256; ++j)
-                if (CHARSET_GETBIT(consumed_chars, j))
-                    id_map[j] = id;
-
 
 #if defined MPM_VERBOSE && MPM_VERBOSE
             if (flags & MPM_COMPILE_VERBOSE) {
@@ -488,9 +504,27 @@ int mpm_compile(mpm_re *re, int flags)
                 printf("] next state: %d\n", (int)id);
             }
 #endif
+
+            /* Search wheter the ID index is used. */
+            id_index = id_indices;
+            while (id_index < last_id_index) {
+                if (*id_index == id) {
+                    id = id_index - id_indices;
+                    break;
+                }
+                id_index ++;
+            }
+
+            if (id_index == last_id_index)
+                *last_id_index++ = id;
+
+            id = id_index - id_indices;
+            for (j = 0; j < 256; j++)
+                if (CHARSET_GETBIT(consumed_chars, j))
+                    id_map[j] = id;
         }
 
-        i = (next_id_index - id_indices) * sizeof(uint32_t);
+        i = (last_id_index - id_indices) * sizeof(uint32_t);
         MAP(next_unprocessed)->offset_map = (mpm_offset_map *)malloc(256 + i);
         if (!MAP(next_unprocessed)->offset_map) {
             hashmap_free(map);
@@ -499,6 +533,7 @@ int mpm_compile(mpm_re *re, int flags)
 
         memcpy(MAP(next_unprocessed)->offset_map->map, id_map, 256);
         memcpy(MAP(next_unprocessed)->offset_map->offsets, id_indices, i);
+        MAP(next_unprocessed)->offset_map_size = 256 + i;
 
         MAP(next_unprocessed) = MAP(next_unprocessed)->next_unprocessed;
     } while (MAP(next_unprocessed));
@@ -534,9 +569,54 @@ int mpm_compile(mpm_re *re, int flags)
         }
     }
 
+    id_offset = MAP(id_offset_map);
+    last_id_offset = id_offset + MAP(item_count);
+    offset = 0;
+    while (id_offset < last_id_offset) {
+        id_offset->offset = offset;
+        offset += id_offset->item->offset_map_size;
+        id_offset++;
+    }
 
+#if defined MPM_VERBOSE && MPM_VERBOSE
+    if (flags & MPM_COMPILE_VERBOSE)
+        printf("Compression save: %.2lf%% = 1 - (%d / %d)\n",
+            1 - ((double)offset / (double)(MAP(item_count) * sizeof(uint32_t) * 256)),
+            offset, MAP(item_count) * sizeof(uint32_t) * 256);
+#endif
+
+    compiled_pattern = (uint8_t *)malloc(offset);
+    if (!compiled_pattern) {
+        hashmap_free(map);
+        return MPM_NO_MEMORY;
+    }
+
+    id_offset = MAP(id_offset_map);
+    while (id_offset < last_id_offset) {
+        id_index = id_offset->item->offset_map->offsets;
+        last_id_index = id_index + ((id_offset->item->offset_map_size - 256) >> 2);
+        do {
+            if (id_index[0] != DFA_NO_DATA)
+                id_index[0] = MAP(id_offset_map)[id_index[0]].offset;
+            id_index++;
+        } while (id_index < last_id_index);
+
+        memcpy(compiled_pattern + id_offset->offset,
+            id_offset->item->offset_map, id_offset->item->offset_map_size);
+        id_offset++;
+    }
+
+    /* Releasing unused memory. */
     hashmap_free(map);
-
     re->next_id = 0;
+    if (re->patterns) {
+        mpm_free_patterns(re->patterns);
+        re->patterns = NULL;
+    }
+
+    if (flags & MPM_ALL_END_STATES)
+        re->flags |= ALL_END_STATES;
+    re->compiled_pattern = compiled_pattern;
+
     return MPM_NO_ERROR;
 }

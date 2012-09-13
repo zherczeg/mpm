@@ -35,12 +35,14 @@ mpm_re * mpm_create(void)
 
     re->next_id = 1;
     re->next_term_index = 0;
+    re->flags = 0;
     re->patterns = NULL;
+    re->compiled_pattern = NULL;
 
     return re;
 }
 
-static void free_patterns(mpm_re_pattern *pattern)
+void mpm_free_patterns(mpm_re_pattern *pattern)
 {
     mpm_re_pattern *next;
     while (pattern) {
@@ -53,7 +55,9 @@ static void free_patterns(mpm_re_pattern *pattern)
 void mpm_free(mpm_re *re)
 {
     if (re->patterns)
-        free_patterns(re->patterns);
+        mpm_free_patterns(re->patterns);
+    if (re->compiled_pattern)
+        free(re->compiled_pattern);
     free(re);
 }
 
