@@ -2202,10 +2202,10 @@ total length. */
 
 #ifdef COMPILE_PCRE8
 #ifndef PUBL
-#define PUBL(name) pcre_##name
+#define PUBL(name) mpm_pcre_##name
 #endif
 #ifndef PRIV
-#define PRIV(name) _pcre_##name
+#define PRIV(name) _mpm_pcre_##name
 #endif
 #else /* COMPILE_PCRE8 */
 #ifdef COMPILE_PCRE16

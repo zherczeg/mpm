@@ -764,7 +764,7 @@ int mpm_add(mpm_re *re, char *pattern, int flags)
     if (flags & MPM_ADD_EXTENDED)
         options |= PCRE_EXTENDED;
 
-    pcre_re = pcre_compile(pattern, options, &errptr, &erroffset, NULL);
+    pcre_re = mpm_pcre_compile(pattern, options, &errptr, &erroffset, NULL);
     if (!pcre_re)
         return MPM_INVALID_PATTERN;
 
@@ -777,7 +777,7 @@ int mpm_add(mpm_re *re, char *pattern, int flags)
             || ((real_pcre_re->options & 0x01800000) != PCRE_BSR_ANYCRLF)) {
         /* This should never happen in practice, so we return
            with an invalid pattern. */
-        pcre_free(pcre_re);
+        mpm_pcre_free(pcre_re);
         return MPM_INVALID_PATTERN;
     }
 
@@ -791,14 +791,14 @@ int mpm_add(mpm_re *re, char *pattern, int flags)
 
     size = get_nfa_bracket_size(byte_code_start, NULL);
     if (size < 0) {
-        pcre_free(pcre_re);
+        mpm_pcre_free(pcre_re);
         return MPM_UNSUPPORTED_PATTERN;
     }
 
     /* Generate the regular expression. */
     word_code_start = (int32_t *)malloc((size + 1) * sizeof(int32_t));
     if (!word_code_start) {
-        pcre_free(pcre_re);
+        mpm_pcre_free(pcre_re);
         return MPM_NO_MEMORY;
     }
 
@@ -806,7 +806,7 @@ int mpm_add(mpm_re *re, char *pattern, int flags)
     word_code[0] = OPCODE_END;
 
     /* The PCRE representation is not needed anymore. */
-    pcre_free(pcre_re);
+    mpm_pcre_free(pcre_re);
 
     if (word_code != word_code_start + size) {
         free(word_code_start);

@@ -337,7 +337,7 @@ structure so that new fields can be added on the end in future versions,
 without changing the API of the function, thereby allowing old clients to work
 without modification. */
 
-typedef struct pcre_callout_block {
+typedef struct mpm_pcre_callout_block {
   int          version;           /* Identifies version of block */
   /* ------------------------ Version 0 ------------------------------- */
   int          callout_number;    /* Number compiled into pattern */
@@ -355,11 +355,11 @@ typedef struct pcre_callout_block {
   /* ------------------- Added for Version 2 -------------------------- */
   const unsigned char *mark;      /* Pointer to current mark or NULL    */
   /* ------------------------------------------------------------------ */
-} pcre_callout_block;
+} mpm_pcre_callout_block;
 
 /* Same structure as above, but with 16 bit char pointers. */
 
-typedef struct pcre16_callout_block {
+typedef struct mpm_pcre16_callout_block {
   int          version;           /* Identifies version of block */
   /* ------------------------ Version 0 ------------------------------- */
   int          callout_number;    /* Number compiled into pattern */
@@ -377,7 +377,7 @@ typedef struct pcre16_callout_block {
   /* ------------------- Added for Version 2 -------------------------- */
   const PCRE_UCHAR16 *mark;       /* Pointer to current mark or NULL    */
   /* ------------------------------------------------------------------ */
-} pcre16_callout_block;
+} mpm_pcre16_callout_block;
 
 /* Indirection for store get and free functions. These can be set to
 alternative malloc/free functions if required. Special ones are used in the
@@ -386,29 +386,29 @@ that is triggered by the (?) regex item. For Virtual Pascal, these definitions
 have to take another form. */
 
 #ifndef VPCOMPAT
-PCRE_EXP_DECL void *(*pcre_malloc)(size_t);
-PCRE_EXP_DECL void  (*pcre_free)(void *);
-PCRE_EXP_DECL void *(*pcre_stack_malloc)(size_t);
-PCRE_EXP_DECL void  (*pcre_stack_free)(void *);
-PCRE_EXP_DECL int   (*pcre_callout)(pcre_callout_block *);
+PCRE_EXP_DECL void *(*mpm_pcre_malloc)(size_t);
+PCRE_EXP_DECL void  (*mpm_pcre_free)(void *);
+PCRE_EXP_DECL void *(*mpm_pcre_stack_malloc)(size_t);
+PCRE_EXP_DECL void  (*mpm_pcre_stack_free)(void *);
+PCRE_EXP_DECL int   (*mpm_pcre_callout)(mpm_pcre_callout_block *);
 
-PCRE_EXP_DECL void *(*pcre16_malloc)(size_t);
-PCRE_EXP_DECL void  (*pcre16_free)(void *);
-PCRE_EXP_DECL void *(*pcre16_stack_malloc)(size_t);
-PCRE_EXP_DECL void  (*pcre16_stack_free)(void *);
-PCRE_EXP_DECL int   (*pcre16_callout)(pcre16_callout_block *);
+PCRE_EXP_DECL void *(*mpm_pcre16_malloc)(size_t);
+PCRE_EXP_DECL void  (*mpm_pcre16_free)(void *);
+PCRE_EXP_DECL void *(*mpm_pcre16_stack_malloc)(size_t);
+PCRE_EXP_DECL void  (*mpm_pcre16_stack_free)(void *);
+PCRE_EXP_DECL int   (*mpm_pcre16_callout)(mpm_pcre16_callout_block *);
 #else   /* VPCOMPAT */
-PCRE_EXP_DECL void *pcre_malloc(size_t);
-PCRE_EXP_DECL void  pcre_free(void *);
-PCRE_EXP_DECL void *pcre_stack_malloc(size_t);
-PCRE_EXP_DECL void  pcre_stack_free(void *);
-PCRE_EXP_DECL int   pcre_callout(pcre_callout_block *);
+PCRE_EXP_DECL void *mpm_pcre_malloc(size_t);
+PCRE_EXP_DECL void  mpm_pcre_free(void *);
+PCRE_EXP_DECL void *mpm_pcre_stack_malloc(size_t);
+PCRE_EXP_DECL void  mpm_pcre_stack_free(void *);
+PCRE_EXP_DECL int   mpm_pcre_callout(mpm_pcre_callout_block *);
 
-PCRE_EXP_DECL void *pcre16_malloc(size_t);
-PCRE_EXP_DECL void  pcre16_free(void *);
-PCRE_EXP_DECL void *pcre16_stack_malloc(size_t);
-PCRE_EXP_DECL void  pcre16_stack_free(void *);
-PCRE_EXP_DECL int   pcre16_callout(pcre16_callout_block *);
+PCRE_EXP_DECL void *mpm_pcre16_malloc(size_t);
+PCRE_EXP_DECL void  mpm_pcre16_free(void *);
+PCRE_EXP_DECL void *mpm_pcre16_stack_malloc(size_t);
+PCRE_EXP_DECL void  mpm_pcre16_stack_free(void *);
+PCRE_EXP_DECL int   mpm_pcre16_callout(mpm_pcre16_callout_block *);
 #endif  /* VPCOMPAT */
 
 /* User defined callback which provides a stack just before the match starts. */
@@ -418,13 +418,13 @@ typedef pcre16_jit_stack *(*pcre16_jit_callback)(void *);
 
 /* Exported PCRE functions */
 
-PCRE_EXP_DECL pcre *pcre_compile(const char *, int, const char **, int *,
+PCRE_EXP_DECL pcre *mpm_pcre_compile(const char *, int, const char **, int *,
                   const unsigned char *);
-PCRE_EXP_DECL pcre16 *pcre16_compile(PCRE_SPTR16, int, const char **, int *,
+PCRE_EXP_DECL pcre16 *mpm_pcre16_compile(PCRE_SPTR16, int, const char **, int *,
                   const unsigned char *);
-PCRE_EXP_DECL pcre *pcre_compile2(const char *, int, int *, const char **,
+PCRE_EXP_DECL pcre *mpm_pcre_compile2(const char *, int, int *, const char **,
                   int *, const unsigned char *);
-PCRE_EXP_DECL pcre16 *pcre16_compile2(PCRE_SPTR16, int, int *, const char **,
+PCRE_EXP_DECL pcre16 *mpm_pcre16_compile2(PCRE_SPTR16, int, int *, const char **,
                   int *, const unsigned char *);
 PCRE_EXP_DECL int  pcre_config(int, void *);
 PCRE_EXP_DECL int  pcre16_config(int, void *);
