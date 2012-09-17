@@ -55,9 +55,14 @@
 /* OPCODE_BRANCH | (INDEX << OPCODE_ARG_SHIFT) */
 #define OPCODE_BRANCH       3
 
+/* These two flags cannot be set in the same time. */
+#define PATTERN_ANCHORED    0x1
+#define PATTERN_MULTILINE   0x2
+
 /* A DFA representation of a pattern */
 typedef struct mpm_re_pattern {
     struct mpm_re_pattern *next;
+    uint32_t flags;
     uint32_t term_range_start;
     uint32_t term_range_size;
     uint32_t word_code[1];

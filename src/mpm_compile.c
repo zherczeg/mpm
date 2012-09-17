@@ -362,7 +362,7 @@ int mpm_compile(mpm_re *re, int flags)
     uint32_t id_indices[256];
     uint32_t available_chars[CHAR_SET_SIZE];
     uint32_t consumed_chars[CHAR_SET_SIZE];
-    uint32_t i, j, id, offset;
+    uint32_t i, j, id, offset, pattern_flags;
 
     if (re->next_id == 0)
         return MPM_RE_ALREADY_COMPILED;
@@ -375,8 +375,19 @@ int mpm_compile(mpm_re *re, int flags)
     /* Initialize data structures. */
     memset(MAP(start), 0, MAP(record_size));
     pattern = re->patterns;
+    pattern_flags = 0;
     while (pattern) {
+        pattern_flags |= pattern->flags;
         word_code = pattern->word_code + pattern->term_range_size + 1;
+        if (pattern->flags & PATTERN_MULTILINE) {
+            if (word_code[0] == DFA_NO_DATA || word_code[1] != DFA_NO_DATA) {
+                hashmap_free(map);
+                return MPM_INTERNAL_ERROR;
+            }
+            DFA_SETBIT(MAP(start), word_code[0]);
+            word_code = pattern->word_code + pattern->word_code[word_code[0] - pattern->term_range_start];
+            word_code += CHAR_SET_SIZE + 1;
+        }
         while (word_code[0] != DFA_NO_DATA) {
             DFA_SETBIT(MAP(start), word_code[0]);
             word_code++;
@@ -390,7 +401,40 @@ int mpm_compile(mpm_re *re, int flags)
     }
 
     memcpy(MAP(current), MAP(start), MAP(record_size));
-    hashmap_insert(map);
+    if (hashmap_insert(map) == DFA_NO_DATA) {
+        hashmap_free(map);
+        return MPM_NO_MEMORY;
+    }
+
+    if (pattern_flags & (PATTERN_ANCHORED | PATTERN_MULTILINE)) {
+        /* We need to recalculate the start state. */
+        memset(MAP(start), 0, MAP(record_size));
+        pattern = re->patterns;
+        while (pattern) {
+            if (pattern->flags & PATTERN_ANCHORED) {
+                pattern = pattern->next;
+                continue;
+            }
+
+            word_code = pattern->word_code + pattern->term_range_size + 1;
+            while (word_code[0] != DFA_NO_DATA) {
+                DFA_SETBIT(MAP(start), word_code[0]);
+                word_code++;
+            }
+            term = MAP(term_map) + pattern->term_range_start;
+            word_code = pattern->word_code;
+            last_term = term + pattern->term_range_size;
+            while (term < last_term)
+                *term++ = pattern->word_code + *word_code++;
+            pattern = pattern->next;
+        }
+
+        memcpy(MAP(current), MAP(start), MAP(record_size));
+        if (hashmap_insert(map) == DFA_NO_DATA) {
+            hashmap_free(map);
+            return MPM_NO_MEMORY;
+        }
+    }
 
     do {
 #if defined MPM_VERBOSE && MPM_VERBOSE

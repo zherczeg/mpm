@@ -28,10 +28,13 @@
 /*                           NFA generator functions.                      */
 /* ----------------------------------------------------------------------- */
 
-/* Recursive function to get the size of the DFA representation. */
-static int get_nfa_bracket_size(pcre_uchar *code, pcre_uchar **bracket_end);
+#define OP_MPM_SOD          OP_END + 1
+#define OP_MPM_CIRCM        OP_END + 2
 
-static int get_nfa_size(pcre_uchar *code, pcre_uchar *end)
+/* Recursive function to get the size of the DFA representation. */
+static uint32_t get_nfa_bracket_size(pcre_uchar *code, pcre_uchar **bracket_end);
+
+static uint32_t get_nfa_size(pcre_uchar *code, pcre_uchar *end)
 {
     int size = 0, subexpression_size;
 
@@ -49,6 +52,7 @@ static int get_nfa_size(pcre_uchar *code, pcre_uchar *end)
         case OP_HSPACE:
         case OP_NOT_VSPACE:
         case OP_VSPACE:
+        case OP_MPM_CIRCM:
             size += 1 + CHAR_SET_SIZE;
             code++;
             break;
@@ -183,14 +187,18 @@ static int get_nfa_size(pcre_uchar *code, pcre_uchar *end)
             size += subexpression_size;
             break;
 
+        case OP_MPM_SOD:
+            code++;
+            break;
+
         default:
-            return -1;
+            return (uint32_t)-1;
         }
     }
     return size;
 }
 
-static int get_nfa_bracket_size(pcre_uchar *code, pcre_uchar **bracket_end)
+static uint32_t get_nfa_bracket_size(pcre_uchar *code, pcre_uchar **bracket_end)
 {
     int size = 0, subexpression_size;
     pcre_uchar *next_alternative;
@@ -201,14 +209,14 @@ static int get_nfa_bracket_size(pcre_uchar *code, pcre_uchar **bracket_end)
     }
 
     if (code[0] != OP_BRA && code[0] != OP_SBRA)
-        return -1;
+        return (uint32_t)-1;
 
     next_alternative = code + GET(code, 1);
     code += 1 + LINK_SIZE;
     while (*next_alternative == OP_ALT) {
         subexpression_size = get_nfa_size(code, next_alternative);
-        if (subexpression_size < 0)
-            return -1;
+        if (subexpression_size == (uint32_t)-1)
+            return (uint32_t)-1;
         size += subexpression_size + 2;
         code = next_alternative;
         next_alternative = code + GET(code, 1);
@@ -216,8 +224,8 @@ static int get_nfa_bracket_size(pcre_uchar *code, pcre_uchar **bracket_end)
     }
 
     subexpression_size = get_nfa_size(code, next_alternative);
-    if (subexpression_size < 0)
-        return -1;
+    if (subexpression_size == (uint32_t)-1)
+        return (uint32_t)-1;
     size += subexpression_size;
 
     if (next_alternative[0] == OP_KETRMAX || next_alternative[0] == OP_KETRMIN)
@@ -318,6 +326,12 @@ static void generate_set(int32_t *word_code, int opcode, pcre_uchar *code)
     case OP_NCLASS:
         memcpy(word_code + 1, code, 32);
         return;
+
+    case OP_MPM_CIRCM:
+        CHARSET_CLEAR(word_code + 1);
+        CHARSET_SETBIT(word_code + 1, 0x0a);
+        CHARSET_SETBIT(word_code + 1, 0x0d);
+        return;
     }
 
     /* Invert the bitset. We can invert words, since the alignment does
@@ -335,7 +349,7 @@ static int32_t * generate_repeat(int32_t *word_code, int opcode,
         if (max == 0) {
             word_code[0] = OPCODE_BRANCH | ((3 + CHAR_SET_SIZE) << OPCODE_ARG_SHIFT);
             generate_set(word_code + 1, opcode, code);
-            word_code[10] = OPCODE_BRANCH | (-(2 + CHAR_SET_SIZE) << OPCODE_ARG_SHIFT);
+            word_code[10] = OPCODE_BRANCH | (-(1 + CHAR_SET_SIZE) << OPCODE_ARG_SHIFT);
             return word_code + 11;
         }
 
@@ -501,6 +515,7 @@ static int32_t * generate_dfa(int32_t *word_code,
         case OP_HSPACE:
         case OP_NOT_VSPACE:
         case OP_VSPACE:
+        case OP_MPM_CIRCM:
             generate_set(word_code, code[0], NULL);
             word_code += 1 + CHAR_SET_SIZE;
             code++;
@@ -586,6 +601,10 @@ static int32_t * generate_dfa(int32_t *word_code,
         case OP_BRAZERO:
         case OP_BRAMINZERO:
             word_code = generate_nfa_bracket(word_code, code, &code);
+            break;
+
+        case OP_MPM_SOD:
+            code++;
             break;
         }
     }
@@ -743,13 +762,14 @@ int mpm_add(mpm_re *re, char *pattern, int flags)
     pcre *pcre_re;
     const char *errptr;
     int erroffset;
-    size_t size;
+    uint32_t size;
     int options = PCRE_NEWLINE_CRLF | PCRE_BSR_ANYCRLF | PCRE_NO_AUTO_CAPTURE;
     REAL_PCRE *real_pcre_re;
     pcre_uchar *byte_code_start;
     int32_t *word_code, *word_code_start;
     uint32_t *dfa_offset;
     uint32_t term_index;
+    uint32_t pattern_flags = 0;
     mpm_re_pattern *re_pattern;
 
     if (re->next_id == 0)
@@ -759,6 +779,8 @@ int mpm_add(mpm_re *re, char *pattern, int flags)
         options |= PCRE_CASELESS;
     if (flags & MPM_ADD_MULTILINE)
         options |= PCRE_MULTILINE;
+    if (flags & MPM_ADD_ANCHORED)
+        options |= PCRE_ANCHORED;
     if (flags & MPM_ADD_DOTALL)
         options |= PCRE_DOTALL;
     if (flags & MPM_ADD_EXTENDED)
@@ -781,16 +803,37 @@ int mpm_add(mpm_re *re, char *pattern, int flags)
         return MPM_INVALID_PATTERN;
     }
 
+    if (real_pcre_re->options & PCRE_ANCHORED)
+        pattern_flags |= PATTERN_ANCHORED;
+    if ((real_pcre_re->options & PCRE_MULTILINE) && !(real_pcre_re->options & PCRE_ANCHORED))
+        pattern_flags |= PATTERN_MULTILINE;
+
     byte_code_start = (pcre_uchar *)real_pcre_re + real_pcre_re->name_table_offset
         + real_pcre_re->name_count * real_pcre_re->name_entry_size;
 
     /* Phase 1: generate a simplified NFA representation. */
 
+    /* We support some special opcodes at the begining and end of the internal representation. */
+    switch (byte_code_start[1 + LINK_SIZE]) {
+    case OP_SOD:
+    case OP_CIRC:
+        if (pattern_flags & PATTERN_ANCHORED)
+            byte_code_start[1 + LINK_SIZE] = OP_MPM_SOD;
+        break;
+
+    case OP_CIRCM:
+        if (pattern_flags & PATTERN_MULTILINE)
+            byte_code_start[1 + LINK_SIZE] = OP_MPM_CIRCM;
+        if (pattern_flags & PATTERN_ANCHORED)
+            byte_code_start[1 + LINK_SIZE] = OP_MPM_SOD;
+        break;
+    }
+
     /* We do two passes over the internal representation:
        first, we calculate the length followed by the NFA generation. */
 
     size = get_nfa_bracket_size(byte_code_start, NULL);
-    if (size < 0) {
+    if (size == (uint32_t)-1) {
         mpm_pcre_free(pcre_re);
         return MPM_UNSUPPORTED_PATTERN;
     }
@@ -817,11 +860,20 @@ int mpm_add(mpm_re *re, char *pattern, int flags)
     if (flags & MPM_ADD_VERBOSE) {
         term_index = re->next_term_index;
         word_code = word_code_start;
-        printf("DFA representation of /%s/%s%s%s%s\n", pattern,
+        printf("DFA representation of /%s/%s%s%s%s%s\n", pattern,
             (flags & MPM_ADD_CASELESS) ? "i" : "",
             (flags & MPM_ADD_MULTILINE) ? "m" : "",
+            (flags & MPM_ADD_ANCHORED) ? "a" : "",
             (flags & MPM_ADD_DOTALL) ? "d" : "",
             (flags & MPM_ADD_EXTENDED) ? "x" : "");
+        printf("  Flags:");
+        if (pattern_flags == 0)
+            printf(" none");
+        if (pattern_flags & PATTERN_ANCHORED)
+            printf(" anchored");
+        if (pattern_flags & PATTERN_MULTILINE)
+            printf(" multiline");
+        printf("\n");
 
         do {
             printf("  %5d: ", (int)(word_code - word_code_start));
@@ -870,6 +922,7 @@ int mpm_add(mpm_re *re, char *pattern, int flags)
         return MPM_NO_MEMORY;
     }
 
+    re_pattern->flags = pattern_flags;
     re_pattern->term_range_start = re->next_term_index;
     re_pattern->term_range_size = term_index;
 
@@ -923,9 +976,18 @@ int mpm_add(mpm_re *re, char *pattern, int flags)
     }
 #endif
 
-    if ((re_pattern->word_code + re_pattern->term_range_size)[0] != DFA_NO_DATA) {
-        free(re_pattern);
-        return MPM_EMPTY_PATTERN;
+    if (pattern_flags & PATTERN_MULTILINE) {
+        dfa_offset = re_pattern->word_code + re_pattern->term_range_size + 1;
+        dfa_offset = re_pattern->word_code + re_pattern->word_code[dfa_offset[0] - re_pattern->term_range_start];
+        if (dfa_offset[CHAR_SET_SIZE] != DFA_NO_DATA) {
+            free(re_pattern);
+            return MPM_EMPTY_PATTERN;
+        }
+    } else {
+        if ((re_pattern->word_code + re_pattern->term_range_size)[0] != DFA_NO_DATA) {
+            free(re_pattern);
+            return MPM_EMPTY_PATTERN;
+        }
     }
 
     /* Insert the pattern. */

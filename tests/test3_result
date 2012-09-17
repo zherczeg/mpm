@@ -1,0 +1,102 @@
+Test3: Testing multiline and ^ assertion.
+
+DFA representation of /^aa/
+  Flags: anchored
+      0: [a] (term:0)
+      9: [a] (term:1)
+     18: END (id:0)
+
+  START : 0
+      0 : [a] 1
+      1!: [a]
+
+Processing    0: Active terms: <0>, Final states: <>
+  For [\x00-`b-\xff] next state: 1
+  For [a] next state: 2
+Processing    2: Active terms: <1>, Final states: <>
+  For [\x00-`b-\xff] next state: 1
+  For [a] next state: -1
+Processing    1: Active terms: <>, Final states: <>
+  For [\x00-\xff] next state: 1
+
+Hashmap statistics: items: 3 buckets: 1024 max bucket: 1 
+Compression save: 0.74% = 1 - (788 / 3072)
+Pattern: /maab/ does not match
+Pattern: /aabb/ matches
+Pattern: /aa/ matches
+Pattern: /a/ does not match
+
+DFA representation of /^aa/m
+  Flags: multiline
+      0: [\x0a\x0d] (term:0)
+      9: [a] (term:1)
+     18: [a] (term:2)
+     27: END (id:0)
+
+  START : 0
+      0 : [\x0a\x0d] 1
+      1 : [a] 2
+      2!: [a]
+
+Processing    0: Active terms: <0,1>, Final states: <>
+  For [\x00-\x09\x0b\x0c\x0e-`b-\xff] next state: 1
+  For [\x0a\x0d] next state: 0
+  For [a] next state: 2
+Processing    2: Active terms: <0,2>, Final states: <>
+  For [\x00-\x09\x0b\x0c\x0e-`b-\xff] next state: 1
+  For [\x0a\x0d] next state: 0
+  For [a] next state: -1
+Processing    1: Active terms: <0>, Final states: <>
+  For [\x00-\x09\x0b\x0c\x0e-\xff] next state: 1
+  For [\x0a\x0d] next state: 0
+
+Hashmap statistics: items: 3 buckets: 1024 max bucket: 1 
+Compression save: 0.74% = 1 - (800 / 3072)
+Pattern: /maab/ does not match
+Pattern: /aabb/ matches
+Pattern: /aa/ matches
+Pattern: /a/ does not match
+Pattern: /m
+aa/ matches
+Pattern: /
+aa/ matches
+Pattern: /aa/ does not match
+Pattern: /aa
+/ matches
+
+DFA representation of /^(?:a|a*)/
+  Flags: anchored
+      0: BRANCH TO 11 (+11)
+      1: [a] (term:0)
+     10: JUMP TO 22 (+12)
+     11: BRANCH TO 22 (+11)
+     12: [a] (term:1)
+     21: BRANCH TO 12 (-9)
+     22: END (id:0)
+
+  START!: 0 1
+      0!: [a]
+      1!: [a] 1
+
+Expected error: 'Pattern matches an empty string' occured
+
+DFA representation of /^(?:a|a*)/m
+  Flags: multiline
+      0: [\x0a\x0d] (term:0)
+      9: BRANCH TO 20 (+11)
+     10: [a] (term:1)
+     19: JUMP TO 31 (+12)
+     20: BRANCH TO 31 (+11)
+     21: [a] (term:2)
+     30: BRANCH TO 21 (-9)
+     31: END (id:0)
+
+  START : 0
+      0!: [\x0a\x0d] 1 2
+      1!: [a]
+      2!: [a] 2
+
+Expected error: 'Pattern matches an empty string' occured
+
+Expected error: 'Pattern is not supported by MPM' occured
+

@@ -1,0 +1,574 @@
+Test2: Testing iterators.
+
+DFA representation of /#a+?#b*#c??#d{3,6}#e{0,3}?#f{2,}#/
+  Flags: none
+      0: [#] (term:0)
+      9: [a] (term:1)
+     18: BRANCH TO 9 (-9)
+     19: [#] (term:2)
+     28: BRANCH TO 39 (+11)
+     29: [b] (term:3)
+     38: BRANCH TO 29 (-9)
+     39: [#] (term:4)
+     48: BRANCH TO 58 (+10)
+     49: [c] (term:5)
+     58: [#] (term:6)
+     67: [d] (term:7)
+     76: [d] (term:8)
+     85: [d] (term:9)
+     94: BRANCH TO 124 (+30)
+     95: [d] (term:10)
+    104: BRANCH TO 124 (+20)
+    105: [d] (term:11)
+    114: BRANCH TO 124 (+10)
+    115: [d] (term:12)
+    124: [#] (term:13)
+    133: BRANCH TO 163 (+30)
+    134: [e] (term:14)
+    143: BRANCH TO 163 (+20)
+    144: [e] (term:15)
+    153: BRANCH TO 163 (+10)
+    154: [e] (term:16)
+    163: [#] (term:17)
+    172: [f] (term:18)
+    181: [f] (term:19)
+    190: BRANCH TO 201 (+11)
+    191: [f] (term:20)
+    200: BRANCH TO 191 (-9)
+    201: [#] (term:21)
+    210: END (id:0)
+
+  START : 0
+      0 : [#] 1
+      1 : [a] 1 2
+      2 : [#] 3 4
+      3 : [b] 3 4
+      4 : [#] 5 6
+      5 : [c] 6
+      6 : [#] 7
+      7 : [d] 8
+      8 : [d] 9
+      9 : [d] 10 13
+     10 : [d] 11 13
+     11 : [d] 12 13
+     12 : [d] 13
+     13 : [#] 14 17
+     14 : [e] 15 17
+     15 : [e] 16 17
+     16 : [e] 17
+     17 : [#] 18
+     18 : [f] 19
+     19 : [f] 20 21
+     20 : [f] 20 21
+     21!: [#]
+
+DFA representation of /#a+#b*?#c?#d{3,6}?#e{0,3}#f{2,}?#/i
+  Flags: none
+      0: [#] (term:22)
+      9: [Aa] (term:23)
+     18: BRANCH TO 9 (-9)
+     19: [#] (term:24)
+     28: BRANCH TO 39 (+11)
+     29: [Bb] (term:25)
+     38: BRANCH TO 29 (-9)
+     39: [#] (term:26)
+     48: BRANCH TO 58 (+10)
+     49: [Cc] (term:27)
+     58: [#] (term:28)
+     67: [Dd] (term:29)
+     76: [Dd] (term:30)
+     85: [Dd] (term:31)
+     94: BRANCH TO 124 (+30)
+     95: [Dd] (term:32)
+    104: BRANCH TO 124 (+20)
+    105: [Dd] (term:33)
+    114: BRANCH TO 124 (+10)
+    115: [Dd] (term:34)
+    124: [#] (term:35)
+    133: BRANCH TO 163 (+30)
+    134: [Ee] (term:36)
+    143: BRANCH TO 163 (+20)
+    144: [Ee] (term:37)
+    153: BRANCH TO 163 (+10)
+    154: [Ee] (term:38)
+    163: [#] (term:39)
+    172: [Ff] (term:40)
+    181: [Ff] (term:41)
+    190: BRANCH TO 201 (+11)
+    191: [Ff] (term:42)
+    200: BRANCH TO 191 (-9)
+    201: [#] (term:43)
+    210: END (id:1)
+
+  START : 22
+     22 : [#] 23
+     23 : [Aa] 23 24
+     24 : [#] 25 26
+     25 : [Bb] 25 26
+     26 : [#] 27 28
+     27 : [Cc] 28
+     28 : [#] 29
+     29 : [Dd] 30
+     30 : [Dd] 31
+     31 : [Dd] 32 35
+     32 : [Dd] 33 35
+     33 : [Dd] 34 35
+     34 : [Dd] 35
+     35 : [#] 36 39
+     36 : [Ee] 37 39
+     37 : [Ee] 38 39
+     38 : [Ee] 39
+     39 : [#] 40
+     40 : [Ff] 41
+     41 : [Ff] 42 43
+     42 : [Ff] 42 43
+     43!: [#]
+
+DFA representation of /#[^a]+?#[^b]*#[^c]??#[^d]{3,6}#[^e]{0,3}?#[^f]{2,}#/
+  Flags: none
+      0: [#] (term:44)
+      9: [\x00-`b-\xff] (term:45)
+     18: BRANCH TO 9 (-9)
+     19: [#] (term:46)
+     28: BRANCH TO 39 (+11)
+     29: [\x00-ac-\xff] (term:47)
+     38: BRANCH TO 29 (-9)
+     39: [#] (term:48)
+     48: BRANCH TO 58 (+10)
+     49: [\x00-bd-\xff] (term:49)
+     58: [#] (term:50)
+     67: [\x00-ce-\xff] (term:51)
+     76: [\x00-ce-\xff] (term:52)
+     85: [\x00-ce-\xff] (term:53)
+     94: BRANCH TO 124 (+30)
+     95: [\x00-ce-\xff] (term:54)
+    104: BRANCH TO 124 (+20)
+    105: [\x00-ce-\xff] (term:55)
+    114: BRANCH TO 124 (+10)
+    115: [\x00-ce-\xff] (term:56)
+    124: [#] (term:57)
+    133: BRANCH TO 163 (+30)
+    134: [\x00-df-\xff] (term:58)
+    143: BRANCH TO 163 (+20)
+    144: [\x00-df-\xff] (term:59)
+    153: BRANCH TO 163 (+10)
+    154: [\x00-df-\xff] (term:60)
+    163: [#] (term:61)
+    172: [\x00-eg-\xff] (term:62)
+    181: [\x00-eg-\xff] (term:63)
+    190: BRANCH TO 201 (+11)
+    191: [\x00-eg-\xff] (term:64)
+    200: BRANCH TO 191 (-9)
+    201: [#] (term:65)
+    210: END (id:2)
+
+  START : 44
+     44 : [#] 45
+     45 : [\x00-`b-\xff] 45 46
+     46 : [#] 47 48
+     47 : [\x00-ac-\xff] 47 48
+     48 : [#] 49 50
+     49 : [\x00-bd-\xff] 50
+     50 : [#] 51
+     51 : [\x00-ce-\xff] 52
+     52 : [\x00-ce-\xff] 53
+     53 : [\x00-ce-\xff] 54 57
+     54 : [\x00-ce-\xff] 55 57
+     55 : [\x00-ce-\xff] 56 57
+     56 : [\x00-ce-\xff] 57
+     57 : [#] 58 61
+     58 : [\x00-df-\xff] 59 61
+     59 : [\x00-df-\xff] 60 61
+     60 : [\x00-df-\xff] 61
+     61 : [#] 62
+     62 : [\x00-eg-\xff] 63
+     63 : [\x00-eg-\xff] 64 65
+     64 : [\x00-eg-\xff] 64 65
+     65!: [#]
+
+DFA representation of /#[^a]+#[^b]*?#[^c]?#[^d]{3,6}?#[^e]{0,3}#[^f]{2,}?#/i
+  Flags: none
+      0: [#] (term:66)
+      9: [\x00-@B-`b-\xff] (term:67)
+     18: BRANCH TO 9 (-9)
+     19: [#] (term:68)
+     28: BRANCH TO 39 (+11)
+     29: [\x00-AC-ac-\xff] (term:69)
+     38: BRANCH TO 29 (-9)
+     39: [#] (term:70)
+     48: BRANCH TO 58 (+10)
+     49: [\x00-BD-bd-\xff] (term:71)
+     58: [#] (term:72)
+     67: [\x00-CE-ce-\xff] (term:73)
+     76: [\x00-CE-ce-\xff] (term:74)
+     85: [\x00-CE-ce-\xff] (term:75)
+     94: BRANCH TO 124 (+30)
+     95: [\x00-CE-ce-\xff] (term:76)
+    104: BRANCH TO 124 (+20)
+    105: [\x00-CE-ce-\xff] (term:77)
+    114: BRANCH TO 124 (+10)
+    115: [\x00-CE-ce-\xff] (term:78)
+    124: [#] (term:79)
+    133: BRANCH TO 163 (+30)
+    134: [\x00-DF-df-\xff] (term:80)
+    143: BRANCH TO 163 (+20)
+    144: [\x00-DF-df-\xff] (term:81)
+    153: BRANCH TO 163 (+10)
+    154: [\x00-DF-df-\xff] (term:82)
+    163: [#] (term:83)
+    172: [\x00-EG-eg-\xff] (term:84)
+    181: [\x00-EG-eg-\xff] (term:85)
+    190: BRANCH TO 201 (+11)
+    191: [\x00-EG-eg-\xff] (term:86)
+    200: BRANCH TO 191 (-9)
+    201: [#] (term:87)
+    210: END (id:3)
+
+  START : 66
+     66 : [#] 67
+     67 : [\x00-@B-`b-\xff] 67 68
+     68 : [#] 69 70
+     69 : [\x00-AC-ac-\xff] 69 70
+     70 : [#] 71 72
+     71 : [\x00-BD-bd-\xff] 72
+     72 : [#] 73
+     73 : [\x00-CE-ce-\xff] 74
+     74 : [\x00-CE-ce-\xff] 75
+     75 : [\x00-CE-ce-\xff] 76 79
+     76 : [\x00-CE-ce-\xff] 77 79
+     77 : [\x00-CE-ce-\xff] 78 79
+     78 : [\x00-CE-ce-\xff] 79
+     79 : [#] 80 83
+     80 : [\x00-DF-df-\xff] 81 83
+     81 : [\x00-DF-df-\xff] 82 83
+     82 : [\x00-DF-df-\xff] 83
+     83 : [#] 84
+     84 : [\x00-EG-eg-\xff] 85
+     85 : [\x00-EG-eg-\xff] 86 87
+     86 : [\x00-EG-eg-\xff] 86 87
+     87!: [#]
+
+DFA representation of /#\s+?#\w*#\d??#\h{3,6}#\w{0,3}?#.{2,}#/i
+  Flags: none
+      0: [#] (term:88)
+      9: [\x09-\x0d ] (term:89)
+     18: BRANCH TO 9 (-9)
+     19: [#] (term:90)
+     28: BRANCH TO 39 (+11)
+     29: [0-9A-Z_a-z] (term:91)
+     38: BRANCH TO 29 (-9)
+     39: [#] (term:92)
+     48: BRANCH TO 58 (+10)
+     49: [0-9] (term:93)
+     58: [#] (term:94)
+     67: [\x09 \xa0] (term:95)
+     76: [\x09 \xa0] (term:96)
+     85: [\x09 \xa0] (term:97)
+     94: BRANCH TO 124 (+30)
+     95: [\x09 \xa0] (term:98)
+    104: BRANCH TO 124 (+20)
+    105: [\x09 \xa0] (term:99)
+    114: BRANCH TO 124 (+10)
+    115: [\x09 \xa0] (term:100)
+    124: [#] (term:101)
+    133: BRANCH TO 163 (+30)
+    134: [0-9A-Z_a-z] (term:102)
+    143: BRANCH TO 163 (+20)
+    144: [0-9A-Z_a-z] (term:103)
+    153: BRANCH TO 163 (+10)
+    154: [0-9A-Z_a-z] (term:104)
+    163: [#] (term:105)
+    172: [\x00-\x09\x0b\x0c\x0e-\xff] (term:106)
+    181: [\x00-\x09\x0b\x0c\x0e-\xff] (term:107)
+    190: BRANCH TO 201 (+11)
+    191: [\x00-\x09\x0b\x0c\x0e-\xff] (term:108)
+    200: BRANCH TO 191 (-9)
+    201: [#] (term:109)
+    210: END (id:4)
+
+  START : 88
+     88 : [#] 89
+     89 : [\x09-\x0d ] 89 90
+     90 : [#] 91 92
+     91 : [0-9A-Z_a-z] 91 92
+     92 : [#] 93 94
+     93 : [0-9] 94
+     94 : [#] 95
+     95 : [\x09 \xa0] 96
+     96 : [\x09 \xa0] 97
+     97 : [\x09 \xa0] 98 101
+     98 : [\x09 \xa0] 99 101
+     99 : [\x09 \xa0] 100 101
+    100 : [\x09 \xa0] 101
+    101 : [#] 102 105
+    102 : [0-9A-Z_a-z] 103 105
+    103 : [0-9A-Z_a-z] 104 105
+    104 : [0-9A-Z_a-z] 105
+    105 : [#] 106
+    106 : [\x00-\x09\x0b\x0c\x0e-\xff] 107
+    107 : [\x00-\x09\x0b\x0c\x0e-\xff] 108 109
+    108 : [\x00-\x09\x0b\x0c\x0e-\xff] 108 109
+    109!: [#]
+
+DFA representation of /#\S+?#\W*#\D??#\H{6,9}#\W{0,7}?#.{6,}#/d
+  Flags: none
+      0: [#] (term:110)
+      9: [\x00-\x08\x0e-\x1f!-\xff] (term:111)
+     18: BRANCH TO 9 (-9)
+     19: [#] (term:112)
+     28: BRANCH TO 39 (+11)
+     29: [\x00-/:-@[-^`{-\xff] (term:113)
+     38: BRANCH TO 29 (-9)
+     39: [#] (term:114)
+     48: BRANCH TO 58 (+10)
+     49: [\x00-/:-\xff] (term:115)
+     58: [#] (term:116)
+     67: [\x00-\x08\x0a-\x1f!-\x9f\xa1-\xff] (term:117)
+     76: [\x00-\x08\x0a-\x1f!-\x9f\xa1-\xff] (term:118)
+     85: [\x00-\x08\x0a-\x1f!-\x9f\xa1-\xff] (term:119)
+     94: [\x00-\x08\x0a-\x1f!-\x9f\xa1-\xff] (term:120)
+    103: [\x00-\x08\x0a-\x1f!-\x9f\xa1-\xff] (term:121)
+    112: [\x00-\x08\x0a-\x1f!-\x9f\xa1-\xff] (term:122)
+    121: BRANCH TO 151 (+30)
+    122: [\x00-\x08\x0a-\x1f!-\x9f\xa1-\xff] (term:123)
+    131: BRANCH TO 151 (+20)
+    132: [\x00-\x08\x0a-\x1f!-\x9f\xa1-\xff] (term:124)
+    141: BRANCH TO 151 (+10)
+    142: [\x00-\x08\x0a-\x1f!-\x9f\xa1-\xff] (term:125)
+    151: [#] (term:126)
+    160: BRANCH TO 230 (+70)
+    161: [\x00-/:-@[-^`{-\xff] (term:127)
+    170: BRANCH TO 230 (+60)
+    171: [\x00-/:-@[-^`{-\xff] (term:128)
+    180: BRANCH TO 230 (+50)
+    181: [\x00-/:-@[-^`{-\xff] (term:129)
+    190: BRANCH TO 230 (+40)
+    191: [\x00-/:-@[-^`{-\xff] (term:130)
+    200: BRANCH TO 230 (+30)
+    201: [\x00-/:-@[-^`{-\xff] (term:131)
+    210: BRANCH TO 230 (+20)
+    211: [\x00-/:-@[-^`{-\xff] (term:132)
+    220: BRANCH TO 230 (+10)
+    221: [\x00-/:-@[-^`{-\xff] (term:133)
+    230: [#] (term:134)
+    239: [\x00-\xff] (term:135)
+    248: [\x00-\xff] (term:136)
+    257: [\x00-\xff] (term:137)
+    266: [\x00-\xff] (term:138)
+    275: [\x00-\xff] (term:139)
+    284: [\x00-\xff] (term:140)
+    293: BRANCH TO 304 (+11)
+    294: [\x00-\xff] (term:141)
+    303: BRANCH TO 294 (-9)
+    304: [#] (term:142)
+    313: END (id:5)
+
+  START : 110
+    110 : [#] 111
+    111 : [\x00-\x08\x0e-\x1f!-\xff] 111 112
+    112 : [#] 113 114
+    113 : [\x00-/:-@[-^`{-\xff] 113 114
+    114 : [#] 115 116
+    115 : [\x00-/:-\xff] 116
+    116 : [#] 117
+    117 : [\x00-\x08\x0a-\x1f!-\x9f\xa1-\xff] 118
+    118 : [\x00-\x08\x0a-\x1f!-\x9f\xa1-\xff] 119
+    119 : [\x00-\x08\x0a-\x1f!-\x9f\xa1-\xff] 120
+    120 : [\x00-\x08\x0a-\x1f!-\x9f\xa1-\xff] 121
+    121 : [\x00-\x08\x0a-\x1f!-\x9f\xa1-\xff] 122
+    122 : [\x00-\x08\x0a-\x1f!-\x9f\xa1-\xff] 123 126
+    123 : [\x00-\x08\x0a-\x1f!-\x9f\xa1-\xff] 124 126
+    124 : [\x00-\x08\x0a-\x1f!-\x9f\xa1-\xff] 125 126
+    125 : [\x00-\x08\x0a-\x1f!-\x9f\xa1-\xff] 126
+    126 : [#] 127 134
+    127 : [\x00-/:-@[-^`{-\xff] 128 134
+    128 : [\x00-/:-@[-^`{-\xff] 129 134
+    129 : [\x00-/:-@[-^`{-\xff] 130 134
+    130 : [\x00-/:-@[-^`{-\xff] 131 134
+    131 : [\x00-/:-@[-^`{-\xff] 132 134
+    132 : [\x00-/:-@[-^`{-\xff] 133 134
+    133 : [\x00-/:-@[-^`{-\xff] 134
+    134 : [#] 135
+    135 : [\x00-\xff] 136
+    136 : [\x00-\xff] 137
+    137 : [\x00-\xff] 138
+    138 : [\x00-\xff] 139
+    139 : [\x00-\xff] 140
+    140 : [\x00-\xff] 141 142
+    141 : [\x00-\xff] 141 142
+    142!: [#]
+
+DFA representation of /#[a-z]+?#[a-z]*#[a-z]??#[a-z]{3,6}#[a-z]{0,3}?#[a-z]{2,}#/
+  Flags: none
+      0: [#] (term:143)
+      9: [a-z] (term:144)
+     18: BRANCH TO 9 (-9)
+     19: [#] (term:145)
+     28: BRANCH TO 39 (+11)
+     29: [a-z] (term:146)
+     38: BRANCH TO 29 (-9)
+     39: [#] (term:147)
+     48: BRANCH TO 58 (+10)
+     49: [a-z] (term:148)
+     58: [#] (term:149)
+     67: [a-z] (term:150)
+     76: [a-z] (term:151)
+     85: [a-z] (term:152)
+     94: BRANCH TO 124 (+30)
+     95: [a-z] (term:153)
+    104: BRANCH TO 124 (+20)
+    105: [a-z] (term:154)
+    114: BRANCH TO 124 (+10)
+    115: [a-z] (term:155)
+    124: [#] (term:156)
+    133: BRANCH TO 163 (+30)
+    134: [a-z] (term:157)
+    143: BRANCH TO 163 (+20)
+    144: [a-z] (term:158)
+    153: BRANCH TO 163 (+10)
+    154: [a-z] (term:159)
+    163: [#] (term:160)
+    172: [a-z] (term:161)
+    181: [a-z] (term:162)
+    190: BRANCH TO 181 (-9)
+    191: [#] (term:163)
+    200: END (id:6)
+
+  START : 143
+    143 : [#] 144
+    144 : [a-z] 144 145
+    145 : [#] 146 147
+    146 : [a-z] 146 147
+    147 : [#] 148 149
+    148 : [a-z] 149
+    149 : [#] 150
+    150 : [a-z] 151
+    151 : [a-z] 152
+    152 : [a-z] 153 156
+    153 : [a-z] 154 156
+    154 : [a-z] 155 156
+    155 : [a-z] 156
+    156 : [#] 157 160
+    157 : [a-z] 158 160
+    158 : [a-z] 159 160
+    159 : [a-z] 160
+    160 : [#] 161
+    161 : [a-z] 162
+    162 : [a-z] 162 163
+    163!: [#]
+
+DFA representation of /aa|bb(cc(?:dd|ee)|ff)/
+  Flags: none
+      0: BRANCH TO 20 (+20)
+      1: [a] (term:164)
+     10: [a] (term:165)
+     19: JUMP TO 114 (+95)
+     20: [b] (term:166)
+     29: [b] (term:167)
+     38: BRANCH TO 96 (+58)
+     39: [c] (term:168)
+     48: [c] (term:169)
+     57: BRANCH TO 77 (+20)
+     58: [d] (term:170)
+     67: [d] (term:171)
+     76: JUMP TO 95 (+19)
+     77: [e] (term:172)
+     86: [e] (term:173)
+     95: JUMP TO 114 (+19)
+     96: [f] (term:174)
+    105: [f] (term:175)
+    114: END (id:7)
+
+  START : 164 166
+    164 : [a] 165
+    165!: [a]
+    166 : [b] 167
+    167 : [b] 168 174
+    168 : [c] 169
+    169 : [c] 170 172
+    170 : [d] 171
+    171!: [d]
+    172 : [e] 173
+    173!: [e]
+    174 : [f] 175
+    175!: [f]
+
+DFA representation of /(ab|cd(mn|op)+|ef(gh)?)*/
+  Flags: none
+      0: BRANCH TO 118 (+118)
+      1: BRANCH TO 21 (+20)
+      2: [a] (term:176)
+     11: [b] (term:177)
+     20: JUMP TO 117 (+97)
+     21: BRANCH TO 80 (+59)
+     22: [c] (term:178)
+     31: [d] (term:179)
+     40: BRANCH TO 60 (+20)
+     41: [m] (term:180)
+     50: [n] (term:181)
+     59: JUMP TO 78 (+19)
+     60: [o] (term:182)
+     69: [p] (term:183)
+     78: BRANCH TO 40 (-38)
+     79: JUMP TO 117 (+38)
+     80: [e] (term:184)
+     89: [f] (term:185)
+     98: BRANCH TO 117 (+19)
+     99: [g] (term:186)
+    108: [h] (term:187)
+    117: BRANCH TO 1 (-116)
+    118: END (id:8)
+
+  START!: 176 178 184
+    176 : [a] 177
+    177!: [b] 176 178 184
+    178 : [c] 179
+    179 : [d] 180 182
+    180 : [m] 181
+    181!: [n] 176 178 180 182 184
+    182 : [o] 183
+    183!: [p] 176 178 180 182 184
+    184 : [e] 185
+    185!: [f] 176 178 184 186
+    186 : [g] 187
+    187!: [h] 176 178 184
+
+Expected error: 'Pattern matches an empty string' occured
+
+DFA representation of /a?b?/
+  Flags: none
+      0: BRANCH TO 10 (+10)
+      1: [a] (term:176)
+     10: BRANCH TO 20 (+10)
+     11: [b] (term:177)
+     20: END (id:8)
+
+  START!: 176 177
+    176!: [a] 177
+    177!: [b]
+
+Expected error: 'Pattern matches an empty string' occured
+
+DFA representation of /a|b?/
+  Flags: none
+      0: BRANCH TO 11 (+11)
+      1: [a] (term:176)
+     10: JUMP TO 21 (+11)
+     11: BRANCH TO 21 (+10)
+     12: [b] (term:177)
+     21: END (id:8)
+
+  START!: 176 177
+    176!: [a]
+    177!: [b]
+
+Expected error: 'Pattern matches an empty string' occured
+
+DFA representation of //
+  Flags: none
+      0:       0: END (id:8)
+
+  START!:
+
+Expected error: 'Pattern matches an empty string' occured
+
