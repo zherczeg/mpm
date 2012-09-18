@@ -450,12 +450,12 @@ int mpm_compile(mpm_re *re, int flags)
         bit_set = MAP(next_unprocessed)->term_set;
         bit_set_end = bit_set + MAP(term_set_length);
         while (bit_set < bit_set_end) {
-            if (!bit_set[0]) {
+            term_bits = *bit_set++;
+            if (term_bits == 0) {
                 term_base += 32;
-                bit_set++;
+                continue;
             }
 
-            term_bits = *bit_set++;
             do {
                 if (term_bits & 0x1)
                     *last_term++ = MAP(term_map)[term_base];

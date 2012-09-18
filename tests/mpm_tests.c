@@ -165,10 +165,27 @@ static void test3()
     mpm_free(re);
 }
 
-#define MAX_TESTS 3
+static void test4()
+{
+    mpm_re *re;
+
+    printf("Test4: A large set.\n\n");
+
+    re = test_mpm_create();
+    if (!re)
+        return;
+
+    test_mpm_add(re, "\\x3Cobject[^\\x3E]+?data\\s*\\x3D\\s*\\x22\\x22", MPM_ADD_VERBOSE);
+    test_mpm_add(re, "^[^\s]{256}", MPM_ADD_VERBOSE);
+    test_mpm_compile(re, MPM_COMPILE_VERBOSE);
+
+    mpm_free(re);
+}
+
+#define MAX_TESTS 4
 
 static test_case tests[MAX_TESTS] = {
-    test1, test2, test3
+    test1, test2, test3, test4
 };
 
 /* ----------------------------------------------------------------------- */
@@ -186,11 +203,6 @@ static void new_feature(void)
         return;
 
 /*
-    test_mpm_add(re, "", MPM_ADD_VERBOSE);
-    test_mpm_add(re, "(ab)?", MPM_ADD_VERBOSE);
-*/
-
-/*
     test_mpm_add(re, "([a0-9]?b)+", MPM_ADD_VERBOSE);
     test_mpm_add(re, "([a0-9]|b*b|[dA-D]+?)x", MPM_ADD_VERBOSE);
     test_mpm_add(re, "([a0-9]|(bc?)|[dC-F](ee|f)*)+", MPM_ADD_VERBOSE);
@@ -205,8 +217,7 @@ static void new_feature(void)
     test_mpm_exec(re, "mmaa bbdedde");
 */
 
-    test_mpm_add(re, "^aa.*bb", /*MPM_ADD_ANCHORED |*/ MPM_ADD_MULTILINE | MPM_ADD_VERBOSE);
-    test_mpm_compile(re, MPM_ALL_END_STATES | MPM_COMPILE_VERBOSE);
+    test_mpm_compile(re, /*MPM_ALL_END_STATES |*/ MPM_COMPILE_VERBOSE);
     test_mpm_exec(re, "mmaa bb");
 
     mpm_free(re);
