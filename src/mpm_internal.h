@@ -68,15 +68,11 @@ typedef struct mpm_re_pattern {
     uint32_t word_code[1];
 } mpm_re_pattern;
 
-/* Internal flags. */
-#define ALL_END_STATES      0x001
-
 /* Internal representation of the regular expression. */
 struct mpm_re_internal {
     /* These members are used by mpm_add(). */
     uint32_t next_id;
     uint32_t next_term_index;
-    uint32_t flags;
     mpm_re_pattern *patterns;
     uint8_t* compiled_pattern;
 };

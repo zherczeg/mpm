@@ -478,10 +478,6 @@ int mpm_compile(mpm_re *re, int flags)
             memcpy(MAP(current), MAP(start), MAP(record_size));
             term = MAP(term_list);
 
-            if (flags & MPM_ALL_END_STATES)
-                memcpy(MAP(current) + MAP(term_set_length), MAP(next_unprocessed)->term_set +
-                    MAP(term_set_length), MAP(end_state_set_length) << 2);
-
             while (term < last_term) {
                 bit_set = term[0];
                 bit_set_end = bit_set + CHAR_SET_SIZE;
@@ -520,25 +516,10 @@ int mpm_compile(mpm_re *re, int flags)
                 *other_bit_set++ -= *bit_set++;
             }
 
-            if (flags & MPM_ALL_END_STATES) {
-                id = DFA_NO_DATA;
-                bit_set = MAP(current) + MAP(term_set_length);
-                /* This function will be more sophisticated in the future. */
-                for (j = re->next_id - 1; j > 0; j--)
-                    if (!DFA_GET_BIT(bit_set, j - 1)) {
-                        id = hashmap_insert(map);
-                        if (id == DFA_NO_DATA) {
-                            hashmap_free(map);
-                            return MPM_NO_MEMORY;
-                        }
-                        break;
-                    }
-            } else {
-                id = hashmap_insert(map);
-                if (id == DFA_NO_DATA) {
-                    hashmap_free(map);
-                    return MPM_NO_MEMORY;
-                }
+            id = hashmap_insert(map);
+            if (id == DFA_NO_DATA) {
+                hashmap_free(map);
+                return MPM_NO_MEMORY;
             }
 
 #if defined MPM_VERBOSE && MPM_VERBOSE
@@ -588,7 +569,7 @@ int mpm_compile(mpm_re *re, int flags)
     }
 
 #if defined MPM_VERBOSE && MPM_VERBOSE
-    if (flags & MPM_COMPILE_VERBOSE)
+    if (flags & MPM_COMPILE_VERBOSE_STATS)
         hashmap_stats(map);
 #endif
 
@@ -623,10 +604,10 @@ int mpm_compile(mpm_re *re, int flags)
     }
 
 #if defined MPM_VERBOSE && MPM_VERBOSE
-    if (flags & MPM_COMPILE_VERBOSE)
+    if (flags & MPM_COMPILE_VERBOSE_STATS)
         printf("Compression save: %.2lf%% = 1 - (%d / %d)\n",
             1 - ((double)offset / (double)(MAP(item_count) * sizeof(uint32_t) * 256)),
-            offset, MAP(item_count) * sizeof(uint32_t) * 256);
+            offset, (int)(MAP(item_count) * sizeof(uint32_t) * 256));
 #endif
 
     compiled_pattern = (uint8_t *)malloc(offset);
@@ -658,8 +639,6 @@ int mpm_compile(mpm_re *re, int flags)
         re->patterns = NULL;
     }
 
-    if (flags & MPM_ALL_END_STATES)
-        re->flags |= ALL_END_STATES;
     re->compiled_pattern = compiled_pattern;
 
     return MPM_NO_ERROR;

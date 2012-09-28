@@ -676,6 +676,57 @@ static int32_t * generate_nfa_bracket(int32_t *word_code,
 }
 
 /* ----------------------------------------------------------------------- */
+/*                            Fixed pattern support.                       */
+/* ----------------------------------------------------------------------- */
+
+static int is_hex_number(char ch)
+{
+    return ((ch >= '0' && ch <= '9') || ((ch | 0x20) >= 'a' && (ch | 0x20) <= 'f'));
+}
+
+static uint32_t hex_number_value(char ch)
+{
+    return ch <= '9' ? ch - '0' : ((ch | 0x20) + 10 - 'a');
+}
+
+static uint32_t get_fixed_pattern_size(char *pattern)
+{
+    int size = 0;
+
+    while (pattern[0]) {
+        size += 1 + CHAR_SET_SIZE;
+        if (pattern[0] == '\\' && pattern[1] == 'x' && is_hex_number(pattern[2]) && is_hex_number(pattern[3]))
+            pattern += 3;
+        pattern++;
+    }
+    return size;
+}
+
+static int32_t * generate_fixed_pattern(int32_t *word_code, char *pattern, int caseless)
+{
+    uint32_t value;
+
+    while (pattern[0]) {
+        word_code[0] = OPCODE_SET;
+
+        value = pattern[0];
+        if (pattern[0] == '\\' && pattern[1] == 'x' && is_hex_number(pattern[2]) && is_hex_number(pattern[3])) {
+            value = hex_number_value(pattern[2]) << 4 | hex_number_value(pattern[3]);
+            pattern += 3;
+        }
+
+        CHARSET_CLEAR(word_code + 1);
+        CHARSET_SETBIT(word_code + 1, value);
+        if (caseless) {
+            CHARSET_SETBIT(word_code + 1, (PRIV(default_tables) + fcc_offset)[value]);
+        }
+        word_code += 1 + CHAR_SET_SIZE;
+        pattern++;
+    }
+    return word_code;
+}
+
+/* ----------------------------------------------------------------------- */
 /*                           DFA generator functions.                      */
 /* ----------------------------------------------------------------------- */
 
@@ -775,82 +826,100 @@ int mpm_add(mpm_re *re, char *pattern, int flags)
     if (re->next_id == 0)
         return MPM_RE_ALREADY_COMPILED;
 
-    if (flags & MPM_ADD_CASELESS)
-        options |= PCRE_CASELESS;
-    if (flags & MPM_ADD_MULTILINE)
-        options |= PCRE_MULTILINE;
-    if (flags & MPM_ADD_ANCHORED)
-        options |= PCRE_ANCHORED;
-    if (flags & MPM_ADD_DOTALL)
-        options |= PCRE_DOTALL;
-    if (flags & MPM_ADD_EXTENDED)
-        options |= PCRE_EXTENDED;
+    if (flags & MPM_ADD_FIXED) {
+        if (flags & (MPM_ADD_MULTILINE | MPM_ADD_DOTALL | MPM_ADD_EXTENDED))
+            return MPM_INVALID_PATTERN;
 
-    pcre_re = mpm_pcre_compile(pattern, options, &errptr, &erroffset, NULL);
-    if (!pcre_re)
-        return MPM_INVALID_PATTERN;
+        if (flags & MPM_ADD_ANCHORED)
+            pattern_flags |= PATTERN_ANCHORED;
 
-    /* Process the internal representation of PCRE. */
-    real_pcre_re = (REAL_PCRE *)pcre_re;
+        /* Calculate the length of the pattern. */
+        size = get_fixed_pattern_size(pattern);
 
-    if (real_pcre_re->magic_number != MAGIC_NUMBER
-            || (real_pcre_re->options & (PCRE_UTF8 | PCRE_UCP))
-            || ((real_pcre_re->options & 0x00700000) != PCRE_NEWLINE_CRLF)
-            || ((real_pcre_re->options & 0x01800000) != PCRE_BSR_ANYCRLF)) {
-        /* This should never happen in practice, so we return
-           with an invalid pattern. */
+        /* Generate the regular expression. */
+        word_code_start = (int32_t *)malloc((size + 1) * sizeof(int32_t));
+        if (!word_code_start)
+            return MPM_NO_MEMORY;
+
+        word_code = generate_fixed_pattern(word_code_start, pattern, flags & MPM_ADD_CASELESS);
+    } else {
+        if (flags & MPM_ADD_CASELESS)
+            options |= PCRE_CASELESS;
+        if (flags & MPM_ADD_MULTILINE)
+            options |= PCRE_MULTILINE;
+        if (flags & MPM_ADD_ANCHORED)
+            options |= PCRE_ANCHORED;
+        if (flags & MPM_ADD_DOTALL)
+            options |= PCRE_DOTALL;
+        if (flags & MPM_ADD_EXTENDED)
+            options |= PCRE_EXTENDED;
+
+        pcre_re = mpm_pcre_compile(pattern, options, &errptr, &erroffset, NULL);
+        if (!pcre_re)
+            return MPM_INVALID_PATTERN;
+
+        /* Process the internal representation of PCRE. */
+        real_pcre_re = (REAL_PCRE *)pcre_re;
+
+        if (real_pcre_re->magic_number != MAGIC_NUMBER
+                || (real_pcre_re->options & (PCRE_UTF8 | PCRE_UCP))
+                || ((real_pcre_re->options & 0x00700000) != PCRE_NEWLINE_CRLF)
+                || ((real_pcre_re->options & 0x01800000) != PCRE_BSR_ANYCRLF)) {
+            /* This should never happen in practice, so we return
+               with an invalid pattern. */
+            mpm_pcre_free(pcre_re);
+            return MPM_INVALID_PATTERN;
+        }
+
+        if (real_pcre_re->options & PCRE_ANCHORED)
+            pattern_flags |= PATTERN_ANCHORED;
+        if ((real_pcre_re->options & PCRE_MULTILINE) && !(real_pcre_re->options & PCRE_ANCHORED))
+            pattern_flags |= PATTERN_MULTILINE;
+
+        byte_code_start = (pcre_uchar *)real_pcre_re + real_pcre_re->name_table_offset
+            + real_pcre_re->name_count * real_pcre_re->name_entry_size;
+
+        /* Generate a simplified NFA representation. */
+
+        /* We support some special opcodes at the begining and end of the internal representation. */
+        switch (byte_code_start[1 + LINK_SIZE]) {
+        case OP_SOD:
+        case OP_CIRC:
+            if (pattern_flags & PATTERN_ANCHORED)
+                byte_code_start[1 + LINK_SIZE] = OP_MPM_SOD;
+            break;
+
+        case OP_CIRCM:
+            if (pattern_flags & PATTERN_MULTILINE)
+                byte_code_start[1 + LINK_SIZE] = OP_MPM_CIRCM;
+            if (pattern_flags & PATTERN_ANCHORED)
+                byte_code_start[1 + LINK_SIZE] = OP_MPM_SOD;
+            break;
+        }
+
+        /* We do two passes over the internal representation:
+           first, we calculate the length followed by the NFA generation. */
+
+        size = get_nfa_bracket_size(byte_code_start, NULL);
+        if (size == (uint32_t)-1) {
+            mpm_pcre_free(pcre_re);
+            return MPM_UNSUPPORTED_PATTERN;
+        }
+
+        /* Generate the regular expression. */
+        word_code_start = (int32_t *)malloc((size + 1) * sizeof(int32_t));
+        if (!word_code_start) {
+            mpm_pcre_free(pcre_re);
+            return MPM_NO_MEMORY;
+        }
+
+        word_code = generate_nfa_bracket(word_code_start, byte_code_start, NULL);
+
+        /* The PCRE representation is not needed anymore. */
         mpm_pcre_free(pcre_re);
-        return MPM_INVALID_PATTERN;
     }
 
-    if (real_pcre_re->options & PCRE_ANCHORED)
-        pattern_flags |= PATTERN_ANCHORED;
-    if ((real_pcre_re->options & PCRE_MULTILINE) && !(real_pcre_re->options & PCRE_ANCHORED))
-        pattern_flags |= PATTERN_MULTILINE;
-
-    byte_code_start = (pcre_uchar *)real_pcre_re + real_pcre_re->name_table_offset
-        + real_pcre_re->name_count * real_pcre_re->name_entry_size;
-
-    /* Phase 1: generate a simplified NFA representation. */
-
-    /* We support some special opcodes at the begining and end of the internal representation. */
-    switch (byte_code_start[1 + LINK_SIZE]) {
-    case OP_SOD:
-    case OP_CIRC:
-        if (pattern_flags & PATTERN_ANCHORED)
-            byte_code_start[1 + LINK_SIZE] = OP_MPM_SOD;
-        break;
-
-    case OP_CIRCM:
-        if (pattern_flags & PATTERN_MULTILINE)
-            byte_code_start[1 + LINK_SIZE] = OP_MPM_CIRCM;
-        if (pattern_flags & PATTERN_ANCHORED)
-            byte_code_start[1 + LINK_SIZE] = OP_MPM_SOD;
-        break;
-    }
-
-    /* We do two passes over the internal representation:
-       first, we calculate the length followed by the NFA generation. */
-
-    size = get_nfa_bracket_size(byte_code_start, NULL);
-    if (size == (uint32_t)-1) {
-        mpm_pcre_free(pcre_re);
-        return MPM_UNSUPPORTED_PATTERN;
-    }
-
-    /* Generate the regular expression. */
-    word_code_start = (int32_t *)malloc((size + 1) * sizeof(int32_t));
-    if (!word_code_start) {
-        mpm_pcre_free(pcre_re);
-        return MPM_NO_MEMORY;
-    }
-
-    word_code = generate_nfa_bracket(word_code_start, byte_code_start, NULL);
     word_code[0] = OPCODE_END;
-
-    /* The PCRE representation is not needed anymore. */
-    mpm_pcre_free(pcre_re);
-
     if (word_code != word_code_start + size) {
         free(word_code_start);
         return MPM_INTERNAL_ERROR;
@@ -867,12 +936,14 @@ int mpm_add(mpm_re *re, char *pattern, int flags)
             (flags & MPM_ADD_DOTALL) ? "d" : "",
             (flags & MPM_ADD_EXTENDED) ? "x" : "");
         printf("  Flags:");
-        if (pattern_flags == 0)
+        if (pattern_flags == 0 && !(flags & MPM_ADD_FIXED))
             printf(" none");
         if (pattern_flags & PATTERN_ANCHORED)
             printf(" anchored");
         if (pattern_flags & PATTERN_MULTILINE)
             printf(" multiline");
+        if (flags & MPM_ADD_FIXED)
+            printf(" fixed");
         printf("\n");
 
         do {

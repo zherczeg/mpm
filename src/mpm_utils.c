@@ -35,7 +35,6 @@ mpm_re * mpm_create(void)
 
     re->next_id = 1;
     re->next_term_index = 0;
-    re->flags = 0;
     re->patterns = NULL;
     re->compiled_pattern = NULL;
 

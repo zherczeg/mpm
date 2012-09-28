@@ -49,15 +49,17 @@ void mpm_free(mpm_re *re);
 #define MPM_ADD_ANCHORED                0x004
 #define MPM_ADD_DOTALL                  0x008
 #define MPM_ADD_EXTENDED                0x010
+/* Fixed strings does not support all the flags above. */
+#define MPM_ADD_FIXED                   0x020
 /* This flag is ignored if MPM_VERBOSE is undefined. */
-#define MPM_ADD_VERBOSE                 0x020
+#define MPM_ADD_VERBOSE                 0x040
 
 int mpm_add(mpm_re *re, char *pattern, int flags);
 
 /* Compile the pattern. */
   /* Generate all end states. Faster, but more memory is consumed. */
-#define MPM_ALL_END_STATES              0x001
-#define MPM_COMPILE_VERBOSE             0x002
+#define MPM_COMPILE_VERBOSE             0x001
+#define MPM_COMPILE_VERBOSE_STATS       0x002
 
 int mpm_compile(mpm_re *re, int flags);
 
