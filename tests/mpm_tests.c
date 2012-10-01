@@ -73,7 +73,17 @@ static void test_mpm_compile(mpm_re *re, int flags)
 
 static void test_mpm_exec(mpm_re *re, char *subject)
 {
-    printf("Pattern: /%s/ %s\n", subject, mpm_exec(re, subject, strlen(subject)) ? "matches" : "does not match");
+    unsigned int result[1];
+    int error_code = mpm_exec(re, subject, strlen(subject), result);
+    if (error_code != MPM_NO_ERROR) {
+        printf("WARNING: mpm_compile is failed: %s\n\n", mpm_error_to_string(error_code));
+        test_failed = 1;
+        return;
+    }
+    if (result[0] == 0)
+        printf("Pattern: /%s/ does not match\n", subject);
+    else
+        printf("Pattern: /%s/ matches (0x%x)\n", subject, (int)result[0]);
 }
 
 static void test_single_match(char *pattern, int add_flags, int compile_flags, char **subject)
@@ -152,8 +162,8 @@ static void test3()
 
     printf("Test3: Testing multiline and ^ assertion.\n\n");
 
-    test_single_match("^aa", MPM_ADD_VERBOSE, MPM_COMPILE_VERBOSE, subjects1);
-    test_single_match("^aa", MPM_ADD_MULTILINE | MPM_ADD_VERBOSE, MPM_ADD_MULTILINE | MPM_COMPILE_VERBOSE, subjects2);
+    test_single_match("^aa", MPM_ADD_VERBOSE, MPM_COMPILE_VERBOSE | MPM_COMPILE_VERBOSE_STATS, subjects1);
+    test_single_match("^aa", MPM_ADD_MULTILINE | MPM_ADD_VERBOSE, MPM_COMPILE_VERBOSE | MPM_COMPILE_VERBOSE_STATS, subjects2);
 
     re = test_mpm_create();
     if (!re)
@@ -177,7 +187,7 @@ static void test4()
 
     test_mpm_add(re, "\\x3Cobject[^\\x3E]+?data\\s*\\x3D\\s*\\x22\\x22", MPM_ADD_VERBOSE);
     test_mpm_add(re, "^[^\\s]{256}", MPM_ADD_VERBOSE);
-    test_mpm_compile(re, MPM_COMPILE_VERBOSE);
+    test_mpm_compile(re, MPM_COMPILE_VERBOSE | MPM_COMPILE_VERBOSE_STATS);
 
     mpm_free(re);
 }
@@ -194,13 +204,24 @@ static test_case tests[MAX_TESTS] = {
 
 #define MAX_LINE_LENGTH 4096
 
+static int is_hex_number(char ch)
+{
+    return ((ch >= '0' && ch <= '9') || ((ch | 0x20) >= 'a' && (ch | 0x20) <= 'f'));
+}
+
+static unsigned int hex_number_value(char ch)
+{
+    return ch <= '9' ? ch - '0' : ((ch | 0x20) + 10 - 'a');
+}
+
 static void load_patterns(char* file_name)
 {
     FILE *f = fopen(file_name, "rt");
     mpm_re *re;
     char data[MAX_LINE_LENGTH];
-    char *ptr;
+    char *source, *destination;
     int flags, line, count_supported, count_failed;
+    unsigned int value;
 
     if (!f) {
         printf("Cannot open file: %s\n", file_name);
@@ -221,21 +242,21 @@ static void load_patterns(char* file_name)
             break;
 
         if (memcmp(data, "regex \"/", 8) == 0 || memcmp(data, "regex !\"/", 9) == 0) {
-            ptr = data + strlen(data) - 1;
-            if (ptr[0] == '\n')
-                ptr--;
-            if (ptr[0] != '"') {
+            source = data + strlen(data) - 1;
+            if (source[0] == '\n')
+                source--;
+            if (source[0] != '"') {
                 printf("Regex must end with quotation mark\n");
                 continue;
             }
-            ptr--;
+            source--;
             flags = 0;
-            while (ptr[0] != '/') {
-                if (ptr < data + 8) {
+            while (source[0] != '/') {
+                if (source < data + 8) {
                     printf("Cannot find terminator slash\n");
                     break;
                 }
-                switch (ptr[0]) {
+                switch (source[0]) {
                 case 'A':
                     flags |= MPM_ADD_ANCHORED;
                     break;
@@ -262,28 +283,40 @@ static void load_patterns(char* file_name)
                 case 'U':
                     break;
                 default:
-                    printf("Unknown flag: %c\n", ptr[0]);
+                    printf("Unknown flag: %c\n", source[0]);
                     break;
                 }
-                ptr--;
+                source--;
             }
-            if (ptr[0] != '/')
+            if (source[0] != '/')
                 continue;
 
-            ptr[0] = '\0';
-            ptr = data + ((data[6] == '!') ? 9 : 8);
-            if (mpm_add(re, ptr, flags) != MPM_NO_ERROR) {
-                printf("Cannot add regex: line:%d %s\n", line, ptr);
+            source[0] = '\0';
+            source = data + ((data[6] == '!') ? 9 : 8);
+            if (mpm_add(re, source, flags) != MPM_NO_ERROR) {
+                printf("Cannot add regex: line:%d %s\n", line, source);
                 count_failed++;
             } else
                 count_supported++;
         } else if (memcmp(data, "pattern ", 8) == 0) {
-            ptr = data + strlen(data) - 1;
-            if (ptr[0] == '\n')
-                ptr--;
-            ptr[1] = '\0';
+            source = data + 8;
+            destination = source;
+            while (source[0]) {
+                value = (unsigned char)source[0];
+                if (value == '\\' && source[1] == 'x' && is_hex_number(source[2]) && is_hex_number(source[3])) {
+                    value = hex_number_value(source[2]) << 4 | hex_number_value(source[3]);
+                    source += 3;
+                }
+                source++;
+                *destination++ = value;
+            }
 
-            if (mpm_add(re, data + 8, MPM_ADD_FIXED) != MPM_NO_ERROR) {
+            if (destination[-1] == '\n') {
+                destination--;
+                destination[0] = '\0';
+            }
+
+            if (mpm_add(re, data + 8, MPM_ADD_FIXED(destination - (data + 8))) != MPM_NO_ERROR) {
                 printf("WARNING: Cannot add fixed string: line:%d %s\n", line, data + 8);
                 count_failed++;
             } else
@@ -330,8 +363,13 @@ static void new_feature(void)
     test_mpm_add(re, "ab.cd*", MPM_ADD_VERBOSE);
 */
 
+    test_mpm_add(re, "aa.b*", MPM_ADD_VERBOSE);
+    test_mpm_add(re, "ma?", MPM_ADD_VERBOSE);
+    test_mpm_add(re, "aa", MPM_ADD_VERBOSE | MPM_ADD_FIXED(2));
     test_mpm_compile(re, MPM_COMPILE_VERBOSE | MPM_COMPILE_VERBOSE_STATS);
     test_mpm_exec(re, "mmaa bb");
+    test_mpm_exec(re, "aa");
+    test_mpm_exec(re, "aax");
 
     mpm_free(re);
 

@@ -36,6 +36,7 @@ typedef struct mpm_re_internal mpm_re;
 #define MPM_EMPTY_PATTERN               4
 #define MPM_UNSUPPORTED_PATTERN         5
 #define MPM_RE_ALREADY_COMPILED         6
+#define MPM_RE_IS_NOT_COMPILED          7
 
 char *mpm_error_to_string(int error_code);
 
@@ -49,10 +50,11 @@ void mpm_free(mpm_re *re);
 #define MPM_ADD_ANCHORED                0x004
 #define MPM_ADD_DOTALL                  0x008
 #define MPM_ADD_EXTENDED                0x010
-/* Fixed strings does not support all the flags above. */
-#define MPM_ADD_FIXED                   0x020
 /* This flag is ignored if MPM_VERBOSE is undefined. */
-#define MPM_ADD_VERBOSE                 0x040
+#define MPM_ADD_VERBOSE                 0x020
+/* Fixed strings does not support all the flags above.
+   The maximum size of a fixed string is 64K. */
+#define MPM_ADD_FIXED(size)             (((size) & 0xffff) << 8)
 
 int mpm_add(mpm_re *re, char *pattern, int flags);
 
@@ -64,6 +66,6 @@ int mpm_add(mpm_re *re, char *pattern, int flags);
 int mpm_compile(mpm_re *re, int flags);
 
 /* Match the pattern. Returns non-zero if successful. */
-int mpm_exec(mpm_re *re, char *subject, int length);
+int mpm_exec(mpm_re *re, char *subject, int length, unsigned int *result);
 
 #endif // mpm_h

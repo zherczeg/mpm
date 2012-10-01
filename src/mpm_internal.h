@@ -36,6 +36,9 @@
 /* Verbose compilation. */
 #define MPM_VERBOSE 1
 
+/* Get the length of the fixed size value. */
+#define GET_FIXED_SIZE(flags)  (((flags) >> 8) & 0xffff)
+
 /* Eight, 32 bit words. */
 #define CHAR_SET_SIZE          8
 /* A non-valid ID or offset. */
@@ -82,6 +85,14 @@ typedef struct mpm_offset_map {
     /* Variable length member. */
     uint32_t offsets[1];
 } mpm_offset_map;
+
+/* Similar to offset map, but organized for better performance. */
+typedef struct mpm_state_map {
+    uint8_t map[256];
+    uint32_t end_states;
+    /* Variable length member. */
+    uint32_t offsets[1];
+} mpm_state_map;
 
 #define CHARSET_CLEAR(set)          memset((set), 0x00, 32)
 #define CHARSET_SET(set)            memset((set), 0xff, 32)

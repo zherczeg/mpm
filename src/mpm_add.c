@@ -679,41 +679,13 @@ static int32_t * generate_nfa_bracket(int32_t *word_code,
 /*                            Fixed pattern support.                       */
 /* ----------------------------------------------------------------------- */
 
-static int is_hex_number(char ch)
-{
-    return ((ch >= '0' && ch <= '9') || ((ch | 0x20) >= 'a' && (ch | 0x20) <= 'f'));
-}
-
-static uint32_t hex_number_value(char ch)
-{
-    return ch <= '9' ? ch - '0' : ((ch | 0x20) + 10 - 'a');
-}
-
-static uint32_t get_fixed_pattern_size(char *pattern)
-{
-    int size = 0;
-
-    while (pattern[0]) {
-        size += 1 + CHAR_SET_SIZE;
-        if (pattern[0] == '\\' && pattern[1] == 'x' && is_hex_number(pattern[2]) && is_hex_number(pattern[3]))
-            pattern += 3;
-        pattern++;
-    }
-    return size;
-}
-
-static int32_t * generate_fixed_pattern(int32_t *word_code, char *pattern, int caseless)
+static int32_t * generate_fixed_pattern(int32_t *word_code, char *pattern, uint32_t size, int caseless)
 {
     uint32_t value;
 
-    while (pattern[0]) {
+    do {
         word_code[0] = OPCODE_SET;
-
-        value = pattern[0];
-        if (pattern[0] == '\\' && pattern[1] == 'x' && is_hex_number(pattern[2]) && is_hex_number(pattern[3])) {
-            value = hex_number_value(pattern[2]) << 4 | hex_number_value(pattern[3]);
-            pattern += 3;
-        }
+        value = (unsigned char)pattern[0];
 
         CHARSET_CLEAR(word_code + 1);
         CHARSET_SETBIT(word_code + 1, value);
@@ -722,7 +694,7 @@ static int32_t * generate_fixed_pattern(int32_t *word_code, char *pattern, int c
         }
         word_code += 1 + CHAR_SET_SIZE;
         pattern++;
-    }
+    } while (--size);
     return word_code;
 }
 
@@ -826,22 +798,23 @@ int mpm_add(mpm_re *re, char *pattern, int flags)
     if (re->next_id == 0)
         return MPM_RE_ALREADY_COMPILED;
 
-    if (flags & MPM_ADD_FIXED) {
+    size = GET_FIXED_SIZE(flags);
+    if (size > 0) {
         if (flags & (MPM_ADD_MULTILINE | MPM_ADD_DOTALL | MPM_ADD_EXTENDED))
             return MPM_INVALID_PATTERN;
 
         if (flags & MPM_ADD_ANCHORED)
             pattern_flags |= PATTERN_ANCHORED;
 
-        /* Calculate the length of the pattern. */
-        size = get_fixed_pattern_size(pattern);
-
         /* Generate the regular expression. */
-        word_code_start = (int32_t *)malloc((size + 1) * sizeof(int32_t));
+        word_code_start = (int32_t *)malloc((size * (1 + CHAR_SET_SIZE) + 1) * sizeof(int32_t));
         if (!word_code_start)
             return MPM_NO_MEMORY;
 
-        word_code = generate_fixed_pattern(word_code_start, pattern, flags & MPM_ADD_CASELESS);
+        word_code = generate_fixed_pattern(word_code_start, pattern, size, flags & MPM_ADD_CASELESS);
+
+        /* Calculate the length of the pattern. */
+        size *= (1 + CHAR_SET_SIZE);
     } else {
         if (flags & MPM_ADD_CASELESS)
             options |= PCRE_CASELESS;
@@ -936,13 +909,14 @@ int mpm_add(mpm_re *re, char *pattern, int flags)
             (flags & MPM_ADD_DOTALL) ? "d" : "",
             (flags & MPM_ADD_EXTENDED) ? "x" : "");
         printf("  Flags:");
-        if (pattern_flags == 0 && !(flags & MPM_ADD_FIXED))
+        size = GET_FIXED_SIZE(flags);
+        if (pattern_flags == 0 && !size)
             printf(" none");
         if (pattern_flags & PATTERN_ANCHORED)
             printf(" anchored");
         if (pattern_flags & PATTERN_MULTILINE)
             printf(" multiline");
-        if (flags & MPM_ADD_FIXED)
+        if (size)
             printf(" fixed");
         printf("\n");
 

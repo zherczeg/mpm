@@ -597,17 +597,19 @@ int mpm_compile(mpm_re *re, int flags)
     id_offset = MAP(id_offset_map);
     last_id_offset = id_offset + MAP(item_count);
     offset = 0;
+    /* Calculate state offsets. */
     while (id_offset < last_id_offset) {
         id_offset->offset = offset;
-        offset += id_offset->item->offset_map_size;
+        /* At the moment we only support 32 end states. */
+        offset += sizeof(uint32_t) + id_offset->item->offset_map_size;
         id_offset++;
     }
 
 #if defined MPM_VERBOSE && MPM_VERBOSE
+    i = sizeof(uint32_t) + (MAP(item_count) * sizeof(uint32_t) * 256);
     if (flags & MPM_COMPILE_VERBOSE_STATS)
         printf("Compression save: %.2lf%% = 1 - (%d / %d)\n",
-            1 - ((double)offset / (double)(MAP(item_count) * sizeof(uint32_t) * 256)),
-            offset, (int)(MAP(item_count) * sizeof(uint32_t) * 256));
+            1 - ((double)offset / (double)i), offset, (int)i);
 #endif
 
     compiled_pattern = (uint8_t *)malloc(offset);
@@ -621,13 +623,17 @@ int mpm_compile(mpm_re *re, int flags)
         id_index = id_offset->item->offset_map->offsets;
         last_id_index = id_index + ((id_offset->item->offset_map_size - 256) >> 2);
         do {
-            if (id_index[0] != DFA_NO_DATA)
-                id_index[0] = MAP(id_offset_map)[id_index[0]].offset;
+            /* Resolve the states to physical offsets. */
+            id_index[0] = MAP(id_offset_map)[id_index[0]].offset;
             id_index++;
         } while (id_index < last_id_index);
 
-        memcpy(compiled_pattern + id_offset->offset,
-            id_offset->item->offset_map, id_offset->item->offset_map_size);
+        memcpy(compiled_pattern + id_offset->offset, id_offset->item->offset_map->map, 256);
+
+        ((uint32_t*)(compiled_pattern + id_offset->offset + 256))[0] = id_offset->item->term_set[MAP(term_set_length)];
+
+        memcpy(compiled_pattern + id_offset->offset + 256 + sizeof(uint32_t),
+            id_offset->item->offset_map->offsets, id_offset->item->offset_map_size - 256);
         id_offset++;
     }
 

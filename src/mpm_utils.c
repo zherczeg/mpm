@@ -76,7 +76,9 @@ char *mpm_error_to_string(int error_code)
     case MPM_UNSUPPORTED_PATTERN:
         return "Pattern is not supported by MPM";
     case MPM_RE_ALREADY_COMPILED:
-        return "Patter has been already compiled by mpm_compile";
+        return "Pattern has been already compiled by mpm_compile";
+    case MPM_RE_IS_NOT_COMPILED:
+        return "Pattern must be compiled first by mpm_compile";
     default:
         return "Unknown error";
     }

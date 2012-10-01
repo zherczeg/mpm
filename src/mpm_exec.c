@@ -27,26 +27,30 @@
 /*                           NFA generator functions.                      */
 /* ----------------------------------------------------------------------- */
 
-int mpm_exec(mpm_re *re, char *subject, int length)
+int mpm_exec(mpm_re *re, char *subject, int length, unsigned int *result)
 {
     uint8_t* compiled_pattern;
-    mpm_offset_map *offset_map;
-    uint32_t next_offset;
+    mpm_state_map *state_map;
+    uint32_t next_offset, current_result, end_states;
 
     if (re->next_id != 0)
-        return 0;
+        return MPM_RE_IS_NOT_COMPILED;
 
     /* Simple matcher. */
     compiled_pattern = re->compiled_pattern;
-    offset_map = (mpm_offset_map *)compiled_pattern;
+    state_map = (mpm_state_map *)compiled_pattern;
+    current_result = state_map->end_states;
     while (length > 0) {
-        next_offset = offset_map->offsets[offset_map->map[(uint8_t)*subject]];
-        if (next_offset == DFA_NO_DATA)
-            return 1;
-        offset_map = (mpm_offset_map *)(compiled_pattern + next_offset);
+        /* The squence is optimized for performance. */
+        next_offset = state_map->map[(uint8_t)*subject];
+        next_offset = state_map->offsets[next_offset];
+        state_map = (mpm_state_map *)(compiled_pattern + next_offset);
+        end_states = state_map->end_states;
         length--;
         subject++;
+        current_result |= end_states;
     }
 
-    return 0;
+    result[0] = current_result;
+    return MPM_NO_ERROR;
 }
