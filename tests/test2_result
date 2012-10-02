@@ -493,80 +493,116 @@ DFA representation of /aa|bb(cc(?:dd|ee)|ff)/
     174 : [f] 175
     175!: [f]
 
+DFA representation of /a.+b*?/
+  Flags: fixed
+      0: [a] (term:176)
+      9: [.] (term:177)
+     18: [+] (term:178)
+     27: [b] (term:179)
+     36: [*] (term:180)
+     45: [?] (term:181)
+     54: END (id:8)
+
+  START : 176
+    176 : [a] 177
+    177 : [.] 178
+    178 : [+] 179
+    179 : [b] 180
+    180 : [*] 181
+    181!: [?]
+
+DFA representation of /x[Bm]*Y?/i
+  Flags: fixed
+      0: [Xx] (term:182)
+      9: [[] (term:183)
+     18: [Bb] (term:184)
+     27: [Mm] (term:185)
+     36: []] (term:186)
+     45: [*] (term:187)
+     54: END (id:9)
+
+  START : 182
+    182 : [Xx] 183
+    183 : [[] 184
+    184 : [Bb] 185
+    185 : [Mm] 186
+    186 : []] 187
+    187!: [*]
+
 DFA representation of /(ab|cd(mn|op)+|ef(gh)?)*/
   Flags: none
       0: BRANCH TO 118 (+118)
       1: BRANCH TO 21 (+20)
-      2: [a] (term:176)
-     11: [b] (term:177)
+      2: [a] (term:188)
+     11: [b] (term:189)
      20: JUMP TO 117 (+97)
      21: BRANCH TO 80 (+59)
-     22: [c] (term:178)
-     31: [d] (term:179)
+     22: [c] (term:190)
+     31: [d] (term:191)
      40: BRANCH TO 60 (+20)
-     41: [m] (term:180)
-     50: [n] (term:181)
+     41: [m] (term:192)
+     50: [n] (term:193)
      59: JUMP TO 78 (+19)
-     60: [o] (term:182)
-     69: [p] (term:183)
+     60: [o] (term:194)
+     69: [p] (term:195)
      78: BRANCH TO 40 (-38)
      79: JUMP TO 117 (+38)
-     80: [e] (term:184)
-     89: [f] (term:185)
+     80: [e] (term:196)
+     89: [f] (term:197)
      98: BRANCH TO 117 (+19)
-     99: [g] (term:186)
-    108: [h] (term:187)
+     99: [g] (term:198)
+    108: [h] (term:199)
     117: BRANCH TO 1 (-116)
-    118: END (id:8)
+    118: END (id:10)
 
-  START!: 176 178 184
-    176 : [a] 177
-    177!: [b] 176 178 184
-    178 : [c] 179
-    179 : [d] 180 182
-    180 : [m] 181
-    181!: [n] 176 178 180 182 184
-    182 : [o] 183
-    183!: [p] 176 178 180 182 184
-    184 : [e] 185
-    185!: [f] 176 178 184 186
-    186 : [g] 187
-    187!: [h] 176 178 184
+  START!: 188 190 196
+    188 : [a] 189
+    189!: [b] 188 190 196
+    190 : [c] 191
+    191 : [d] 192 194
+    192 : [m] 193
+    193!: [n] 188 190 192 194 196
+    194 : [o] 195
+    195!: [p] 188 190 192 194 196
+    196 : [e] 197
+    197!: [f] 188 190 196 198
+    198 : [g] 199
+    199!: [h] 188 190 196
 
 Expected error: 'Pattern matches an empty string' occured
 
 DFA representation of /a?b?/
   Flags: none
       0: BRANCH TO 10 (+10)
-      1: [a] (term:176)
+      1: [a] (term:188)
      10: BRANCH TO 20 (+10)
-     11: [b] (term:177)
-     20: END (id:8)
+     11: [b] (term:189)
+     20: END (id:10)
 
-  START!: 176 177
-    176!: [a] 177
-    177!: [b]
+  START!: 188 189
+    188!: [a] 189
+    189!: [b]
 
 Expected error: 'Pattern matches an empty string' occured
 
 DFA representation of /a|b?/
   Flags: none
       0: BRANCH TO 11 (+11)
-      1: [a] (term:176)
+      1: [a] (term:188)
      10: JUMP TO 21 (+11)
      11: BRANCH TO 21 (+10)
-     12: [b] (term:177)
-     21: END (id:8)
+     12: [b] (term:189)
+     21: END (id:10)
 
-  START!: 176 177
-    176!: [a]
-    177!: [b]
+  START!: 188 189
+    188!: [a]
+    189!: [b]
 
 Expected error: 'Pattern matches an empty string' occured
 
 DFA representation of //
   Flags: none
-      0:       0: END (id:8)
+      0:       0: END (id:10)
 
   START!:
 

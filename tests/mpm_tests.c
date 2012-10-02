@@ -86,13 +86,8 @@ static void test_mpm_exec(mpm_re *re, char *subject)
         printf("Pattern: /%s/ matches (0x%x)\n", subject, (int)result[0]);
 }
 
-static void test_single_match(char *pattern, int add_flags, int compile_flags, char **subject)
+static void test_multiple_match(mpm_re *re, int compile_flags, char **subject)
 {
-    mpm_re *re = test_mpm_create();
-    if (!re)
-        return;
-
-    test_mpm_add(re, pattern, add_flags);
     test_mpm_compile(re, compile_flags);
     while (subject[0]) {
         test_mpm_exec(re, subject[0]);
@@ -100,6 +95,16 @@ static void test_single_match(char *pattern, int add_flags, int compile_flags, c
     }
     puts("");
     mpm_free(re);
+}
+
+static void test_single_match(char *pattern, int add_flags, int compile_flags, char **subject)
+{
+    mpm_re *re = test_mpm_create();
+    if (!re)
+        return;
+
+    test_mpm_add(re, pattern, add_flags);
+    test_multiple_match(re, compile_flags, subject);
 }
 
 /* ----------------------------------------------------------------------- */
@@ -146,6 +151,8 @@ static void test2()
     test_mpm_add(re, "#\\S+?#\\W*#\\D??#\\H{6,9}#\\W{0,7}?#.{6,}#", MPM_ADD_DOTALL | MPM_ADD_VERBOSE);
     test_mpm_add(re, "#[a-z]+?#[a-z]*#[a-z]??#[a-z]{3,6}#[a-z]{0,3}?#[a-z]{2,}#", MPM_ADD_VERBOSE);
     test_mpm_add(re, "aa|bb(cc(?:dd|ee)|ff)", MPM_ADD_VERBOSE);
+    test_mpm_add(re, "a.+b*?", MPM_ADD_VERBOSE | MPM_ADD_FIXED(6));
+    test_mpm_add(re, "x[Bm]*Y?", MPM_ADD_VERBOSE | MPM_ADD_CASELESS | MPM_ADD_FIXED(6));
     test_mpm_add_fail(re, "(ab|cd(mn|op)+|ef(gh)?)*", MPM_ADD_VERBOSE, MPM_EMPTY_PATTERN);
     test_mpm_add_fail(re, "a?b?", MPM_ADD_VERBOSE, MPM_EMPTY_PATTERN);
     test_mpm_add_fail(re, "a|b?", MPM_ADD_VERBOSE, MPM_EMPTY_PATTERN);
@@ -157,10 +164,47 @@ static void test2()
 static void test3()
 {
     mpm_re *re;
+
+    printf("Test3: A large set.\n\n");
+
+    re = test_mpm_create();
+    if (!re)
+        return;
+
+    test_mpm_add(re, "\\x3Cobject[^\\x3E]+?data\\s*\\x3D\\s*\\x22\\x22", MPM_ADD_VERBOSE);
+    test_mpm_add(re, "^[^\\s]{256}", MPM_ADD_VERBOSE);
+    test_mpm_compile(re, MPM_COMPILE_VERBOSE | MPM_COMPILE_VERBOSE_STATS);
+
+    mpm_free(re);
+}
+
+static void test4()
+{
+    char * subjects1[] = { "aabc", "a.b+c", "a.b+", "a.b+cd", "mXa.b+c", "na.b+", NULL };
+    char * subjects2[] = { "AXX", "[aB]x+", "[Ab]X", "::[AB]X+", "::[ab]x+R", NULL };
+    char * subjects3[] = { "m", "abbc", "MaBbcCc", "DeF", "MaBDfA", "de", NULL };
+    char * subjects4[] = { "mxnmy", "mxxmnmyn", ":%mxyxmnmyxxn%:", "mnmn", "<<<myynmxxmn>>", NULL };
+
+    printf("Test4: Test single matching set.\n\n");
+
+    test_single_match("a.b+c", MPM_ADD_VERBOSE | MPM_ADD_FIXED(5), MPM_COMPILE_VERBOSE | MPM_COMPILE_VERBOSE_STATS, subjects1);
+    test_single_match("[Ab]X+", MPM_ADD_VERBOSE | MPM_ADD_CASELESS | MPM_ADD_FIXED(6), MPM_COMPILE_VERBOSE | MPM_COMPILE_VERBOSE_STATS, subjects2);
+    test_single_match("a?b*(cc+|de?f)", MPM_ADD_VERBOSE | MPM_ADD_CASELESS, MPM_COMPILE_VERBOSE | MPM_COMPILE_VERBOSE_STATS, subjects3);
+    test_single_match("(m[xy]+m?n){2}", MPM_ADD_VERBOSE, MPM_COMPILE_VERBOSE | MPM_COMPILE_VERBOSE_STATS, subjects4);
+}
+
+static void test5()
+{
+    printf("Test5: Multiple matching set.\n\n");
+}
+
+static void test6()
+{
+    mpm_re *re;
     char * subjects1[] = { "maab", "aabb", "aa", "a", NULL };
     char * subjects2[] = { "maab", "aabb", "aa", "a", "m\naa", "\r\naa", "a\ra", "\raa\n", NULL };
 
-    printf("Test3: Testing multiline and ^ assertion.\n\n");
+    printf("Test6: Testing multiline and ^ assertion.\n\n");
 
     test_single_match("^aa", MPM_ADD_VERBOSE, MPM_COMPILE_VERBOSE | MPM_COMPILE_VERBOSE_STATS, subjects1);
     test_single_match("^aa", MPM_ADD_MULTILINE | MPM_ADD_VERBOSE, MPM_COMPILE_VERBOSE | MPM_COMPILE_VERBOSE_STATS, subjects2);
@@ -175,27 +219,11 @@ static void test3()
     mpm_free(re);
 }
 
-static void test4()
-{
-    mpm_re *re;
-
-    printf("Test4: A large set.\n\n");
-
-    re = test_mpm_create();
-    if (!re)
-        return;
-
-    test_mpm_add(re, "\\x3Cobject[^\\x3E]+?data\\s*\\x3D\\s*\\x22\\x22", MPM_ADD_VERBOSE);
-    test_mpm_add(re, "^[^\\s]{256}", MPM_ADD_VERBOSE);
-    test_mpm_compile(re, MPM_COMPILE_VERBOSE | MPM_COMPILE_VERBOSE_STATS);
-
-    mpm_free(re);
-}
-
-#define MAX_TESTS 4
+#define MAX_TESTS 6
 
 static test_case tests[MAX_TESTS] = {
-    test1, test2, test3, test4
+    test1, test2, test3, test4, test5,
+    test6
 };
 
 /* ----------------------------------------------------------------------- */
