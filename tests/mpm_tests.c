@@ -21,10 +21,11 @@
  * \author Zoltan Herczeg <zherczeg@inf.u-szeged.hu>
  */
 
+#include "mpm.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#include "mpm.h"
+#include <time.h>
 
 /* ----------------------------------------------------------------------- */
 /*                               Utility functions.                        */
@@ -231,6 +232,11 @@ static test_case tests[MAX_TESTS] = {
 /* ----------------------------------------------------------------------- */
 
 #define MAX_LINE_LENGTH 4096
+#define MAX_RE_GROUPS 4
+
+static mpm_re *loaded_re[MAX_RE_GROUPS];
+static char *input;
+static unsigned long input_length;
 
 static int is_hex_number(char ch)
 {
@@ -242,13 +248,13 @@ static unsigned int hex_number_value(char ch)
     return ch <= '9' ? ch - '0' : ((ch | 0x20) + 10 - 'a');
 }
 
-static void load_patterns(char* file_name)
+static void load_patterns(char* file_name,
+    int load_regexes, int load_patterns, int max_loaded, int groups)
 {
     FILE *f = fopen(file_name, "rt");
-    mpm_re *re;
     char data[MAX_LINE_LENGTH];
     char *source, *destination;
-    int flags, line, count_supported, count_failed;
+    int group_id, flags, line, count_supported, count_failed;
     unsigned int value;
 
     if (!f) {
@@ -256,20 +262,35 @@ static void load_patterns(char* file_name)
         return;
     }
 
-    re = test_mpm_create();
-    if (!re) {
-        fclose(f);
-        return;
+    if (!max_loaded)
+        max_loaded = 0x7fffffff;
+
+    if (groups <= 0)
+        groups = 1;
+    if (groups >= MAX_RE_GROUPS)
+        groups = MAX_RE_GROUPS;
+
+    for (group_id = 0; group_id < groups; group_id++) {
+        loaded_re[group_id] = test_mpm_create();
+        if (!loaded_re[group_id]) {
+            fclose(f);
+            return;
+        }
     }
 
     count_supported = 0;
     count_failed = 0;
     line = 1;
-    while (1) {
+    group_id = 0;
+
+    while (count_supported < max_loaded) {
         if (!fgets(data, MAX_LINE_LENGTH, f))
             break;
 
         if (memcmp(data, "regex \"/", 8) == 0 || memcmp(data, "regex !\"/", 9) == 0) {
+            if (!load_regexes)
+                continue;
+
             source = data + strlen(data) - 1;
             if (source[0] == '\n')
                 source--;
@@ -321,12 +342,17 @@ static void load_patterns(char* file_name)
 
             source[0] = '\0';
             source = data + ((data[6] == '!') ? 9 : 8);
-            if (mpm_add(re, source, flags) != MPM_NO_ERROR) {
+            if (mpm_add(loaded_re[group_id], source, flags) != MPM_NO_ERROR) {
                 printf("Cannot add regex: line:%d %s\n", line, source);
                 count_failed++;
-            } else
+            } else {
                 count_supported++;
+                group_id = (group_id + 1) % groups;
+            }
         } else if (memcmp(data, "pattern ", 8) == 0) {
+            if (!load_patterns)
+                continue;
+
             source = data + 8;
             destination = source;
             while (source[0]) {
@@ -344,11 +370,13 @@ static void load_patterns(char* file_name)
                 destination[0] = '\0';
             }
 
-            if (mpm_add(re, data + 8, MPM_ADD_FIXED(destination - (data + 8))) != MPM_NO_ERROR) {
+            if (mpm_add(loaded_re[group_id], data + 8, MPM_ADD_FIXED(destination - (data + 8))) != MPM_NO_ERROR) {
                 printf("WARNING: Cannot add fixed string: line:%d %s\n", line, data + 8);
                 count_failed++;
-            } else
+            } else {
                 count_supported++;
+                group_id = (group_id + 1) % groups;
+            }
         } else
             printf("WARNING: Unknown type: line:%d %s\n", line, data);
         line++;
@@ -357,39 +385,44 @@ static void load_patterns(char* file_name)
     fclose(f);
 
     printf("Statistics: Supported: %d Unsupported: %d\n", count_supported, count_failed);
-    /* test_mpm_compile(re, MPM_COMPILE_VERBOSE_STATS); */
+    if (groups > 1)
+        for (group_id = 0; group_id < groups; group_id++)
+            test_mpm_compile(loaded_re[group_id], MPM_COMPILE_VERBOSE_STATS);
+}
+
+static void load_input(char *file_name)
+{
+    FILE *f = fopen(file_name, "rt");
+    unsigned long length;
+
+    if (!f)
+        return;
+
+    fseek(f, 0, SEEK_END);
+    length = ftell(f);
+    fseek(f, 0, SEEK_SET);
+
+    input = (char*)malloc(length);
+    if (!input) {
+        fclose(f);
+        return;
+    }
+
+    fread(input, 1, length, f);
+    fclose(f);
+    printf("File: %s (%d) loaded\n", file_name, (int)length);
+    input_length = length;
 }
 
 static void new_feature(void)
 {
-    mpm_re *re;
+#if 0
 
-    printf("Trying a new feature.\n\n");
+    mpm_re *re;
 
     re = test_mpm_create();
     if (!re)
         return;
-
-/*
-    test_mpm_add(re, "([a0-9]?b)+", MPM_ADD_VERBOSE);
-    test_mpm_add(re, "([a0-9]|b*b|[dA-D]+?)x", MPM_ADD_VERBOSE);
-    test_mpm_add(re, "([a0-9]|(bc?)|[dC-F](ee|f)*)+", MPM_ADD_VERBOSE);
-
-    test_mpm_add(re, "aa.*bb", MPM_ADD_VERBOSE);
-    test_mpm_add(re, "\\s+b+\\w+", MPM_ADD_VERBOSE);
-    test_mpm_add(re, "mm(a.+)+dd", MPM_ADD_VERBOSE);
-    test_mpm_add(re, "(de.*){2}", MPM_ADD_VERBOSE);
-
-    test_mpm_compile(re, MPM_ALL_END_STATES | MPM_COMPILE_VERBOSE);
-
-    test_mpm_exec(re, "mmaa bbdedde");
-*/
-
-/*
-    test_mpm_add(re, "a\\x00b.c\\x20\\xffd*", MPM_ADD_FIXED | MPM_ADD_VERBOSE);
-    test_mpm_add(re, "X(\\x6a\\x0d)?m\\x0g", MPM_ADD_CASELESS | MPM_ADD_FIXED | MPM_ADD_VERBOSE);
-    test_mpm_add(re, "ab.cd*", MPM_ADD_VERBOSE);
-*/
 
     test_mpm_add(re, "aa.b*", MPM_ADD_VERBOSE);
     test_mpm_add(re, "ma?", MPM_ADD_VERBOSE);
@@ -401,7 +434,32 @@ static void new_feature(void)
 
     mpm_free(re);
 
-    /* load_patterns("../../patterns.txt"); */
+#else
+
+   int i;
+   clock_t time;
+   unsigned int results[4];
+
+   load_patterns("../../patterns2.txt",
+        /* load_regexes */ 1, 
+        /* load_patterns */ 0,
+        /* max_loaded */ 16,
+        /* groups */ 4);
+
+    load_input("../../input.txt");
+
+    time = clock();
+    for (i = 0; i < 4; ++i)
+        mpm_exec(loaded_re[i], input, input_length, results);
+    time = clock() - time;
+    printf("Separate run: %d ms\n", (int)time * 1000 / CLOCKS_PER_SEC);
+
+    time = clock();
+    mpm_exec4(loaded_re, input, input_length, results);
+    time = clock() - time;
+    printf("Separate run: %d ms\n", (int)time * 1000 / CLOCKS_PER_SEC);
+
+#endif
 }
 
 int main(int argc, char* argv[])
@@ -419,6 +477,8 @@ int main(int argc, char* argv[])
         return 1;
     }
 
+    printf("Trying a new feature.\n\n");
     new_feature();
+
     return test_failed;
 }
