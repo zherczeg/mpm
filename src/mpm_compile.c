@@ -602,6 +602,10 @@ int mpm_compile(mpm_re *re, int flags)
         id_offset->offset = offset;
         /* At the moment we only support 32 end states. */
         offset += sizeof(uint32_t) + id_offset->item->offset_map_size;
+        if (offset > 0x7fffffff) {
+            hashmap_free(map);
+            return MPM_BIG_STATE_MACHINE;
+        }
         id_offset++;
     }
 
@@ -622,9 +626,10 @@ int mpm_compile(mpm_re *re, int flags)
     while (id_offset < last_id_offset) {
         id_index = id_offset->item->offset_map->offsets;
         last_id_index = id_index + ((id_offset->item->offset_map_size - 256) >> 2);
+        offset = id_offset->offset;
         do {
             /* Resolve the states to physical offsets. */
-            id_index[0] = MAP(id_offset_map)[id_index[0]].offset;
+            id_index[0] = MAP(id_offset_map)[id_index[0]].offset - offset;
             id_index++;
         } while (id_index < last_id_index);
 

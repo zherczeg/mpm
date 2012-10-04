@@ -232,7 +232,7 @@ static test_case tests[MAX_TESTS] = {
 /* ----------------------------------------------------------------------- */
 
 #define MAX_LINE_LENGTH 4096
-#define MAX_RE_GROUPS 4
+#define MAX_RE_GROUPS 16
 
 static mpm_re *loaded_re[MAX_RE_GROUPS];
 static char *input;
@@ -346,6 +346,7 @@ static void load_patterns(char* file_name,
                 printf("Cannot add regex: line:%d %s\n", line, source);
                 count_failed++;
             } else {
+printf("Pattern: %d /%s/\n", group_id, source);
                 count_supported++;
                 group_id = (group_id + 1) % groups;
             }
@@ -438,26 +439,27 @@ static void new_feature(void)
 
    int i;
    clock_t time;
-   unsigned int results[4];
+   unsigned int results[8];
 
    load_patterns("../../patterns2.txt",
         /* load_regexes */ 1, 
         /* load_patterns */ 0,
-        /* max_loaded */ 16,
-        /* groups */ 4);
+        /* max_loaded */ 32,
+        /* groups */ 8);
 
     load_input("../../input.txt");
 
     time = clock();
-    for (i = 0; i < 4; ++i)
-        mpm_exec(loaded_re[i], input, input_length, results);
+    for (i = 0; i < 32; ++i)
+        mpm_exec(loaded_re[0], input, input_length, results);
     time = clock() - time;
-    printf("Separate run: %d ms\n", (int)time * 1000 / CLOCKS_PER_SEC);
+    printf("Sequential run: %d ms (average)\n", (int)(time * 1000 / (CLOCKS_PER_SEC * 32)));
 
     time = clock();
-    mpm_exec4(loaded_re, input, input_length, results);
+    for (i = 0; i < 32; ++i)
+        mpm_exec4(loaded_re, input, input_length, results);
     time = clock() - time;
-    printf("Separate run: %d ms\n", (int)time * 1000 / CLOCKS_PER_SEC);
+    printf("Parallel run (4): %d ms (average)\n", (int)(time * 1000 / (CLOCKS_PER_SEC * 4 * 32)));
 
 #endif
 }

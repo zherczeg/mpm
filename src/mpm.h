@@ -37,6 +37,7 @@ typedef struct mpm_re_internal mpm_re;
 #define MPM_UNSUPPORTED_PATTERN         5
 #define MPM_RE_ALREADY_COMPILED         6
 #define MPM_RE_IS_NOT_COMPILED          7
+#define MPM_BIG_STATE_MACHINE           8
 
 char *mpm_error_to_string(int error_code);
 
@@ -67,6 +68,9 @@ int mpm_compile(mpm_re *re, int flags);
 
 /* Match the pattern. Returns non-zero if successful. */
 int mpm_exec(mpm_re *re, char *subject, int length, unsigned int *result);
+int mpm_exec3(mpm_re **re, char *subject, int length, unsigned int *result);
 int mpm_exec4(mpm_re **re, char *subject, int length, unsigned int *result);
+int mpm_exec6(mpm_re **re, char *subject, int length, unsigned int *result);
+int mpm_exec8(mpm_re **re, char *subject, int length, unsigned int *result);
 
 #endif // mpm_h

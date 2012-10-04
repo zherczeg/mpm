@@ -27,11 +27,13 @@
 /*                           NFA generator functions.                      */
 /* ----------------------------------------------------------------------- */
 
+#define MOVE_STATE_MAP(map, offset) \
+    (mpm_state_map *)((char*)(map) + (offset))
+
 int mpm_exec(mpm_re *re, char *subject, int length, unsigned int *result)
 {
-    uint8_t *compiled_pattern;
     mpm_state_map *state_map;
-    uint32_t next_offset;
+    int32_t next_offset;
     uint32_t current_result;
     uint32_t end_states;
 
@@ -43,8 +45,7 @@ int mpm_exec(mpm_re *re, char *subject, int length, unsigned int *result)
     }
 
     /* Simple matcher. */
-    compiled_pattern = re->compiled_pattern;
-    state_map = (mpm_state_map *)compiled_pattern;
+    state_map = (mpm_state_map *)re->compiled_pattern;
     current_result = 0;
     do {
         /* The squence is optimized for performance. */
@@ -53,7 +54,7 @@ int mpm_exec(mpm_re *re, char *subject, int length, unsigned int *result)
         next_offset = state_map->offsets[next_offset];
         subject++;
         current_result |= end_states;
-        state_map = (mpm_state_map *)(compiled_pattern + next_offset);
+        state_map = MOVE_STATE_MAP(state_map, next_offset);
     } while (--length);
 
     result[0] = current_result | state_map->end_states;
@@ -62,9 +63,8 @@ int mpm_exec(mpm_re *re, char *subject, int length, unsigned int *result)
 
 int mpm_exec4(mpm_re **re, char *subject, int length, unsigned int *result)
 {
-    uint8_t *compiled_pattern0, *compiled_pattern1, *compiled_pattern2, *compiled_pattern3;
     mpm_state_map *state_map0, *state_map1, *state_map2, *state_map3;
-    uint32_t next_offset0, next_offset1, next_offset2, next_offset3;
+    int32_t next_offset0, next_offset1, next_offset2, next_offset3;
     uint32_t current_result0, current_result1, current_result2, current_result3;
     uint32_t end_states0, end_states1, end_states2, end_states3;
 
@@ -80,14 +80,10 @@ int mpm_exec4(mpm_re **re, char *subject, int length, unsigned int *result)
     }
 
     /* Simple matcher. */
-    compiled_pattern0 = re[0]->compiled_pattern;
-    compiled_pattern1 = re[1]->compiled_pattern;
-    compiled_pattern2 = re[2]->compiled_pattern;
-    compiled_pattern3 = re[3]->compiled_pattern;
-    state_map0 = (mpm_state_map *)compiled_pattern0;
-    state_map1 = (mpm_state_map *)compiled_pattern1;
-    state_map2 = (mpm_state_map *)compiled_pattern2;
-    state_map3 = (mpm_state_map *)compiled_pattern3;
+    state_map0 = (mpm_state_map *)re[0]->compiled_pattern;
+    state_map1 = (mpm_state_map *)re[1]->compiled_pattern;
+    state_map2 = (mpm_state_map *)re[2]->compiled_pattern;
+    state_map3 = (mpm_state_map *)re[3]->compiled_pattern;
     current_result0 = 0;
     current_result1 = 0;
     current_result2 = 0;
@@ -111,10 +107,10 @@ int mpm_exec4(mpm_re **re, char *subject, int length, unsigned int *result)
         current_result1 |= end_states1;
         current_result2 |= end_states2;
         current_result3 |= end_states3;
-        state_map0 = (mpm_state_map *)(compiled_pattern0 + next_offset0);
-        state_map1 = (mpm_state_map *)(compiled_pattern1 + next_offset1);
-        state_map2 = (mpm_state_map *)(compiled_pattern2 + next_offset2);
-        state_map3 = (mpm_state_map *)(compiled_pattern3 + next_offset3);
+        state_map0 = MOVE_STATE_MAP(state_map0, next_offset0);
+        state_map1 = MOVE_STATE_MAP(state_map1, next_offset1);
+        state_map2 = MOVE_STATE_MAP(state_map2, next_offset2);
+        state_map3 = MOVE_STATE_MAP(state_map3, next_offset3);
     } while (--length);
 
     result[0] = current_result0 | state_map0->end_states;

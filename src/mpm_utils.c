@@ -79,6 +79,8 @@ char *mpm_error_to_string(int error_code)
         return "Pattern has been already compiled by mpm_compile";
     case MPM_RE_IS_NOT_COMPILED:
         return "Pattern must be compiled first by mpm_compile";
+    case MPM_BIG_STATE_MACHINE:
+        return "State machine is too big (max 2G)";
     default:
         return "Unknown error";
     }

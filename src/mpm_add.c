@@ -415,7 +415,7 @@ static int32_t * generate_char_repeat(int32_t *word_code, pcre_uchar *code)
     } else if (code[0] >= OP_NOTSTARI && code[0] <= OP_NOTEXACTI) {
         type = code[0] - (OP_NOTSTARI - OP_STAR);
         opcode = OP_NOTI;
-    } else if (code[0] >= OP_TYPESTAR && code[0] <= OP_TYPEEXACT) {
+    } else /* if (code[0] >= OP_TYPESTAR && code[0] <= OP_TYPEEXACT) */ {
         type = code[0] - (OP_TYPESTAR - OP_STAR);
         opcode = (code[0] <= OP_TYPEMINQUERY) ? code[1] : code[1 + IMM2_SIZE];
     }
@@ -450,6 +450,7 @@ static int32_t * generate_char_repeat(int32_t *word_code, pcre_uchar *code)
         break;
 
     case OP_EXACT:
+    default:
         min = GET2(code, 1);
         max = min;
         offset = code + 1 + IMM2_SIZE;
