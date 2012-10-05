@@ -569,7 +569,7 @@ int mpm_compile(mpm_re *re, int flags)
         memcpy(MAP(next_unprocessed)->next_state_map, id_map, state_map_size);
         memcpy(MAP(next_unprocessed)->next_state_map + state_map_size, id_indices, i);
 
-        if (MAP(item_count) > 0x1fffff) {
+        if (MAP(item_count) > STATE_LIMIT) {
             hashmap_free(map);
             return MPM_STATE_MACHINE_LIMIT;
         }

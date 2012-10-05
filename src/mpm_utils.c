@@ -83,7 +83,7 @@ char *mpm_error_to_string(int error_code)
     case MPM_RE_IS_NOT_COMPILED:
         return "Pattern must be compiled first by mpm_compile";
     case MPM_STATE_MACHINE_LIMIT:
-        return "Size of state machine is reached (max 2G)";
+        return "Size of state machine is reached (max " TOSTRING(STATE_LIMIT) " states)";
     default:
         return "Unknown error code";
     }

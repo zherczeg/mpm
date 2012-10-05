@@ -42,6 +42,9 @@
 /* Maximum number of regular expressions. */
 #define PATTERN_LIMIT          32
 
+/* Maximum number of states. */
+#define STATE_LIMIT            100000
+
 /* Eight, 32 bit words. */
 #define CHAR_SET_SIZE          8
 /* A non-valid ID or offset. */
