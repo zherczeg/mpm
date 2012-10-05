@@ -363,6 +363,7 @@ int mpm_compile(mpm_re *re, int flags)
     uint32_t available_chars[CHAR_SET_SIZE];
     uint32_t consumed_chars[CHAR_SET_SIZE];
     uint32_t i, j, id, offset, pattern_flags;
+    uint32_t state_map_size = (re->compiled_pattern_flags & RE_CHAR_SET_256) ? 256 : 128;
 
     if (re->next_id == 0)
         return MPM_RE_ALREADY_COMPILED;
@@ -371,6 +372,14 @@ int mpm_compile(mpm_re *re, int flags)
         hashmap_free(map);
         return MPM_NO_MEMORY;
     }
+
+#if defined MPM_VERBOSE && MPM_VERBOSE
+    if (flags & MPM_COMPILE_VERBOSE)
+        if (re->compiled_pattern_flags & RE_CHAR_SET_256)
+            puts("Full (0..255) char range is used.\n");
+        else
+            puts("Half (0..127) char range is used.\n");
+#endif
 
     /* Initialize data structures. */
     memset(MAP(start), 0, MAP(record_size));
@@ -468,7 +477,7 @@ int mpm_compile(mpm_re *re, int flags)
         memset(available_chars, 0xff, CHAR_SET_SIZE * sizeof(uint32_t));
         last_id_index = id_indices;
 
-        for (i = 0; i < 256; i++) {
+        for (i = 0; i < state_map_size; i++) {
             if (!CHARSET_GETBIT(available_chars, i))
                 continue;
 
@@ -544,21 +553,26 @@ int mpm_compile(mpm_re *re, int flags)
                 *last_id_index++ = id;
 
             id = id_index - id_indices;
-            for (j = 0; j < 256; j++)
+            for (j = 0; j < state_map_size; j++)
                 if (CHARSET_GETBIT(consumed_chars, j))
                     id_map[j] = id;
         }
 
         i = (last_id_index - id_indices) * sizeof(uint32_t);
-        MAP(next_unprocessed)->next_state_map_size = 256 + i;
-        MAP(next_unprocessed)->next_state_map = (uint8_t *)malloc(256 + i);
+        MAP(next_unprocessed)->next_state_map_size = state_map_size + i;
+        MAP(next_unprocessed)->next_state_map = (uint8_t *)malloc(state_map_size + i);
         if (!MAP(next_unprocessed)->next_state_map) {
             hashmap_free(map);
             return MPM_NO_MEMORY;
         }
 
-        memcpy(MAP(next_unprocessed)->next_state_map, id_map, 256);
-        memcpy(MAP(next_unprocessed)->next_state_map + 256, id_indices, i);
+        memcpy(MAP(next_unprocessed)->next_state_map, id_map, state_map_size);
+        memcpy(MAP(next_unprocessed)->next_state_map + state_map_size, id_indices, i);
+
+        if (MAP(item_count) > 0x1fffff) {
+            hashmap_free(map);
+            return MPM_STATE_MACHINE_LIMIT;
+        }
 
         MAP(next_unprocessed) = MAP(next_unprocessed)->next_unprocessed;
     } while (MAP(next_unprocessed));
@@ -604,7 +618,7 @@ int mpm_compile(mpm_re *re, int flags)
         offset += sizeof(uint32_t) + id_offset->item->next_state_map_size;
         if (offset > 0x7fffffff) {
             hashmap_free(map);
-            return MPM_BIG_STATE_MACHINE;
+            return MPM_STATE_MACHINE_LIMIT;
         }
         id_offset++;
     }
@@ -624,7 +638,7 @@ int mpm_compile(mpm_re *re, int flags)
 
     id_offset = MAP(id_offset_map);
     while (id_offset < last_id_offset) {
-        id_index = (uint32_t *)(id_offset->item->next_state_map + 256);
+        id_index = (uint32_t *)(id_offset->item->next_state_map + state_map_size);
         last_id_index = (uint32_t *)(id_offset->item->next_state_map + id_offset->item->next_state_map_size);
         offset = id_offset->offset;
         do {

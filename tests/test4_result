@@ -16,6 +16,8 @@ DFA representation of /a.b+c/
       3 : [+] 4
       4!: [c]
 
+Half (0..127) char range is used.
+
 Processing    0: Active terms: <0>, Final states: <>
   For [\x00-`b-\xff] next state: 0
   For [a] next state: 1
@@ -40,7 +42,7 @@ Processing    5: Active terms: <0>, Final states: <0>
   For [a] next state: 1
 
 Hashmap statistics: items: 6 buckets: 1024 max bucket: 1 
-Compression save: 0.74% = 1 - (1624 / 6148)
+Compression save: 0.86% = 1 - (856 / 6148)
 Pattern: /aabc/ does not match
 Pattern: /a.b+c/ matches (0x1)
 Pattern: /a.b+/ does not match
@@ -65,6 +67,8 @@ DFA representation of /[Ab]X+/i
       3 : []] 4
       4 : [Xx] 5
       5!: [+]
+
+Half (0..127) char range is used.
 
 Processing    0: Active terms: <0>, Final states: <>
   For [\x00-Z\-\xff] next state: 0
@@ -94,7 +98,7 @@ Processing    6: Active terms: <0>, Final states: <0>
   For [[] next state: 1
 
 Hashmap statistics: items: 7 buckets: 1024 max bucket: 1 
-Compression save: 0.74% = 1 - (1896 / 7172)
+Compression save: 0.86% = 1 - (1000 / 7172)
 Pattern: /AXX/ does not match
 Pattern: /[aB]x+/ matches (0x1)
 Pattern: /[Ab]X/ does not match
@@ -127,6 +131,8 @@ DFA representation of /a?b*(cc+|de?f)/i
       4 : [Dd] 5 6
       5 : [Ee] 6
       6!: [Ff]
+
+Half (0..127) char range is used.
 
 Processing    0: Active terms: <0-2,4>, Final states: <>
   For [\x00-@E-`e-\xff] next state: 0
@@ -169,7 +175,7 @@ Processing    5: Active terms: <0-4>, Final states: <0>
   For [Dd] next state: 2
 
 Hashmap statistics: items: 6 buckets: 1024 max bucket: 1 
-Compression save: 0.73% = 1 - (1644 / 6148)
+Compression save: 0.86% = 1 - (876 / 6148)
 Pattern: /m/ does not match
 Pattern: /abbc/ does not match
 Pattern: /MaBbcCc/ matches (0x1)
@@ -202,6 +208,8 @@ DFA representation of /(m[xy]+m?n){2}/
       5 : [xy] 5 6 7
       6 : [m] 7
       7!: [n]
+
+Half (0..127) char range is used.
 
 Processing    0: Active terms: <0>, Final states: <>
   For [\x00-ln-\xff] next state: 0
@@ -242,10 +250,99 @@ Processing    3: Active terms: <0,1,3>, Final states: <>
   For [xy] next state: 2
 
 Hashmap statistics: items: 9 buckets: 1024 max bucket: 1 
-Compression save: 0.73% = 1 - (2452 / 9220)
+Compression save: 0.86% = 1 - (1300 / 9220)
 Pattern: /mxnmy/ does not match
 Pattern: /mxxmnmyn/ matches (0x1)
 Pattern: /:%mxyxmnmyxxn%:/ matches (0x1)
 Pattern: /mnmn/ does not match
 Pattern: /<<<myynmxxmn>>/ matches (0x1)
+
+DFA representation of /\x7f{2}/
+  Flags: none
+      0: [\x7f] (term:0)
+      9: [\x7f] (term:1)
+     18: END (id:0)
+
+  START : 0
+      0 : [\x7f] 1
+      1!: [\x7f]
+
+Full (0..255) char range is used.
+
+Processing    0: Active terms: <0>, Final states: <>
+  For [\x00-~\x80-\xff] next state: 0
+  For [\x7f] next state: 1
+Processing    1: Active terms: <0,1>, Final states: <>
+  For [\x00-~\x80-\xff] next state: 0
+  For [\x7f] next state: 2
+Processing    2: Active terms: <0,1>, Final states: <0>
+  For [\x00-~\x80-\xff] next state: 0
+  For [\x7f] next state: 2
+
+Hashmap statistics: items: 3 buckets: 1024 max bucket: 1 
+Compression save: 0.74% = 1 - (804 / 3076)
+Pattern: /€/ matches (0x1)
+Pattern: /€€/ does not match
+Pattern: /€/ does not match
+
+DFA representation of /\x80{2}/
+  Flags: none
+      0: [\x80] (term:0)
+      9: [\x80] (term:1)
+     18: END (id:0)
+
+  START : 0
+      0 : [\x80] 1
+      1!: [\x80]
+
+Full (0..255) char range is used.
+
+Processing    0: Active terms: <0>, Final states: <>
+  For [\x00-\x7f\x81-\xff] next state: 0
+  For [\x80] next state: 1
+Processing    1: Active terms: <0,1>, Final states: <>
+  For [\x00-\x7f\x81-\xff] next state: 0
+  For [\x80] next state: 2
+Processing    2: Active terms: <0,1>, Final states: <0>
+  For [\x00-\x7f\x81-\xff] next state: 0
+  For [\x80] next state: 2
+
+Hashmap statistics: items: 3 buckets: 1024 max bucket: 1 
+Compression save: 0.74% = 1 - (804 / 3076)
+Pattern: /€/ does not match
+Pattern: /€€/ matches (0x1)
+Pattern: /€/ does not match
+
+DFA representation of /[a-\x90]{3}/
+  Flags: none
+      0: [a-\x90] (term:0)
+      9: [a-\x90] (term:1)
+     18: [a-\x90] (term:2)
+     27: END (id:0)
+
+  START : 0
+      0 : [a-\x90] 1
+      1 : [a-\x90] 2
+      2!: [a-\x90]
+
+Full (0..255) char range is used.
+
+Processing    0: Active terms: <0>, Final states: <>
+  For [\x00-`\x91-\xff] next state: 0
+  For [a-\x90] next state: 1
+Processing    1: Active terms: <0,1>, Final states: <>
+  For [\x00-`\x91-\xff] next state: 0
+  For [a-\x90] next state: 2
+Processing    2: Active terms: <0-2>, Final states: <>
+  For [\x00-`\x91-\xff] next state: 0
+  For [a-\x90] next state: 3
+Processing    3: Active terms: <0-2>, Final states: <0>
+  For [\x00-`\x91-\xff] next state: 0
+  For [a-\x90] next state: 3
+
+Hashmap statistics: items: 4 buckets: 1024 max bucket: 1 
+Compression save: 0.74% = 1 - (1072 / 4100)
+Pattern: /€/ matches (0x1)
+Pattern: /€€/ matches (0x1)
+Pattern: /€/ does not match
 

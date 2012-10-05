@@ -794,10 +794,14 @@ int mpm_add(mpm_re *re, char *pattern, int flags)
     uint32_t *dfa_offset;
     uint32_t term_index;
     uint32_t pattern_flags = 0;
+    uint32_t full_char_range = 0;
     mpm_re_pattern *re_pattern;
 
     if (re->next_id == 0)
         return MPM_RE_ALREADY_COMPILED;
+
+    if (re->next_id > PATTERN_LIMIT)
+        return MPM_PATTERN_LIMIT;
 
     size = GET_FIXED_SIZE(flags);
     if (size > 0) {
@@ -944,6 +948,23 @@ int mpm_add(mpm_re *re, char *pattern, int flags)
     }
 #endif
 
+    if (!(re->compiled_pattern_flags & RE_CHAR_SET_256)) {
+        word_code = word_code_start;
+        while ((word_code[0] & OPCODE_MASK) != OPCODE_END) {
+            if ((word_code[0] & OPCODE_MASK) == OPCODE_SET) {
+                if (CHARSET_GETBIT(word_code + 1, 127)) {
+                    if ((word_code[5] & word_code[6] & word_code[7] & word_code[8]) != -1)
+                        full_char_range = 1;
+                } else {
+                    if ((word_code[5] | word_code[6] | word_code[7] | word_code[8]) != 0)
+                        full_char_range = 1;
+                }
+                word_code += CHAR_SET_SIZE;
+            }
+            word_code++;
+        }
+    }
+
     /* Phase 2: generate the DFA representation. */
 
     /* We do two passes again: first, we calculate the length
@@ -1042,6 +1063,8 @@ int mpm_add(mpm_re *re, char *pattern, int flags)
 
     re->next_id++;
     re->next_term_index += re_pattern->term_range_size;
+    if (full_char_range)
+        re->compiled_pattern_flags |= RE_CHAR_SET_256;
 
     return MPM_NO_ERROR;
 }

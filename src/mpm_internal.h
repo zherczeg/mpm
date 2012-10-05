@@ -39,28 +39,34 @@
 /* Get the length of the fixed size value. */
 #define GET_FIXED_SIZE(flags)  (((flags) >> 8) & 0xffff)
 
+/* Maximum number of regular expressions. */
+#define PATTERN_LIMIT          32
+
 /* Eight, 32 bit words. */
 #define CHAR_SET_SIZE          8
 /* A non-valid ID or offset. */
 #define DFA_NO_DATA            ((uint32_t)-1)
 
+#define TOSTRING_IMPL(exp)     #exp
+#define TOSTRING(exp)          TOSTRING_IMPL(exp)
+
 /* Opcode flags. */
-#define OPCODE_MASK         0x7
-#define OPCODE_ARG_SHIFT    4
-#define OPCODE_MARKED       0x8
+#define OPCODE_MASK            0x7
+#define OPCODE_ARG_SHIFT       4
+#define OPCODE_MARKED          0x8
 
 /* OPCODE_END. */
-#define OPCODE_END          0
+#define OPCODE_END             0
 /* OPCODE_SET, 32 byte long bit mask (same as eight uint32_t). */
-#define OPCODE_SET          1
+#define OPCODE_SET             1
 /* OPCODE_JUMP | (INDEX << OPCODE_ARG_SHIFT) */
-#define OPCODE_JUMP         2
+#define OPCODE_JUMP            2
 /* OPCODE_BRANCH | (INDEX << OPCODE_ARG_SHIFT) */
-#define OPCODE_BRANCH       3
+#define OPCODE_BRANCH          3
 
 /* These two flags cannot be set in the same time. */
-#define PATTERN_ANCHORED    0x1
-#define PATTERN_MULTILINE   0x2
+#define PATTERN_ANCHORED       0x1
+#define PATTERN_MULTILINE      0x2
 
 /* A DFA representation of a pattern */
 typedef struct mpm_re_pattern {
@@ -71,11 +77,14 @@ typedef struct mpm_re_pattern {
     uint32_t word_code[1];
 } mpm_re_pattern;
 
+#define RE_CHAR_SET_256        0x1
+
 /* Internal representation of the regular expression. */
 struct mpm_re_internal {
     /* These members are used by mpm_add(). */
     uint32_t next_id;
     uint32_t next_term_index;
+    uint32_t compiled_pattern_flags;
     mpm_re_pattern *patterns;
     uint8_t* compiled_pattern;
 };

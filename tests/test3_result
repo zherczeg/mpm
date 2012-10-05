@@ -563,6 +563,8 @@ DFA representation of /^[^\s]{256}/
     271 : [\x00-\x08\x0b\x0e-\x1f!-\xff] 272
     272!: [\x00-\x08\x0b\x0e-\x1f!-\xff]
 
+Half (0..127) char range is used.
+
 Processing    0: Active terms: <0,17>, Final states: <>
   For [\x00-\x08\x0b\x0e-\x1f!-;=-\xff] next state: 2
   For [\x09\x0a\x0c\x0d ] next state: 1
@@ -34640,4 +34642,4 @@ Processing    1: Active terms: <0>, Final states: <>
   For [<] next state: 739
 
 Hashmap statistics: items: 5493 buckets: 8192 max bucket: 5 
-Compression save: 0.73% = 1 - (1541528 / 5624836)
+Compression save: 0.85% = 1 - (838424 / 5624836)

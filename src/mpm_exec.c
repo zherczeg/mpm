@@ -54,16 +54,29 @@ int mpm_exec(mpm_re *re, char *subject, int length, unsigned int *result)
     /* Simple matcher. */
     state_map = re->compiled_pattern + sizeof(uint32_t);
     current_result = 0;
-    do {
-        /* The squence is optimized for performance. */
-        current_character = *(uint8_t*)subject;
-        next_offset = state_map[current_character];
-        end_states = GET_END_STATES(state_map);
-        next_offset = GET_NEXT_OFFSET(state_map, 256, next_offset);
-        subject++;
-        current_result |= end_states;
-        state_map = NEXT_STATE_MAP(state_map, next_offset);
-    } while (--length);
+    if (!(re->compiled_pattern_flags & RE_CHAR_SET_256)) {
+        do {
+            /* The squence is optimized for performance. */
+            current_character = *(uint8_t*)subject;
+            next_offset = state_map[current_character < 128 ? current_character : 128];
+            end_states = GET_END_STATES(state_map);
+            next_offset = GET_NEXT_OFFSET(state_map, 128, next_offset);
+            subject++;
+            current_result |= end_states;
+            state_map = NEXT_STATE_MAP(state_map, next_offset);
+        } while (--length);
+    } else {
+        do {
+            /* The squence is optimized for performance. */
+            current_character = *(uint8_t*)subject;
+            next_offset = state_map[current_character];
+            end_states = GET_END_STATES(state_map);
+            next_offset = GET_NEXT_OFFSET(state_map, 256, next_offset);
+            subject++;
+            current_result |= end_states;
+            state_map = NEXT_STATE_MAP(state_map, next_offset);
+        } while (--length);
+    }
 
     result[0] = current_result | GET_END_STATES(state_map);
     return MPM_NO_ERROR;
@@ -89,10 +102,10 @@ int mpm_exec4(mpm_re **re, char *subject, int length, unsigned int *result)
     }
 
     /* Simple matcher. */
-    state_map0 = re[0]->compiled_pattern;
-    state_map1 = re[1]->compiled_pattern;
-    state_map2 = re[2]->compiled_pattern;
-    state_map3 = re[3]->compiled_pattern;
+    state_map0 = re[0]->compiled_pattern + sizeof(uint32_t);
+    state_map1 = re[1]->compiled_pattern + sizeof(uint32_t);
+    state_map2 = re[2]->compiled_pattern + sizeof(uint32_t);
+    state_map3 = re[3]->compiled_pattern + sizeof(uint32_t);
     current_result0 = 0;
     current_result1 = 0;
     current_result2 = 0;

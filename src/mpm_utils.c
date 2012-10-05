@@ -35,6 +35,7 @@ mpm_re * mpm_create(void)
 
     re->next_id = 1;
     re->next_term_index = 0;
+    re->compiled_pattern_flags = 0;
     re->patterns = NULL;
     re->compiled_pattern = NULL;
 
@@ -71,18 +72,20 @@ char *mpm_error_to_string(int error_code)
         return "Internal error (should never happen)";
     case MPM_INVALID_PATTERN:
         return "Pattern cannot be compiled by PCRE";
-    case MPM_EMPTY_PATTERN:
-        return "Pattern matches an empty string";
     case MPM_UNSUPPORTED_PATTERN:
         return "Pattern is not supported by MPM";
+    case MPM_EMPTY_PATTERN:
+        return "Pattern matches an empty string";
+    case MPM_PATTERN_LIMIT:
+        return "Cannot add more regular expressions (max " TOSTRING(PATTERN_LIMIT) ")";
     case MPM_RE_ALREADY_COMPILED:
         return "Pattern has been already compiled by mpm_compile";
     case MPM_RE_IS_NOT_COMPILED:
         return "Pattern must be compiled first by mpm_compile";
-    case MPM_BIG_STATE_MACHINE:
-        return "State machine is too big (max 2G)";
+    case MPM_STATE_MACHINE_LIMIT:
+        return "Size of state machine is reached (max 2G)";
     default:
-        return "Unknown error";
+        return "Unknown error code";
     }
 }
 
@@ -93,7 +96,7 @@ char *mpm_error_to_string(int error_code)
 #if defined MPM_VERBOSE && MPM_VERBOSE
 static void print_character(int character)
 {
-    if (character >= 0x20 && character <= 0x7f && character != '-')
+    if (character >= 0x20 && character <= 0x7e && character != '-')
         printf("%c", character);
     else if (character <= 0xf)
         printf("\\x0%x", character);

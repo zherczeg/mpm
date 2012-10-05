@@ -185,6 +185,7 @@ static void test4()
     char * subjects2[] = { "AXX", "[aB]x+", "[Ab]X", "::[AB]X+", "::[ab]x+R", NULL };
     char * subjects3[] = { "m", "abbc", "MaBbcCc", "DeF", "MaBDfA", "de", NULL };
     char * subjects4[] = { "mxnmy", "mxxmnmyn", ":%mxyxmnmyxxn%:", "mnmn", "<<<myynmxxmn>>", NULL };
+    char * subjects5[] = { "\x80\x7f\x7f", "\x80\x80\x7f", "\x80\x7f", NULL };
 
     printf("Test4: Test single matching set.\n\n");
 
@@ -192,6 +193,9 @@ static void test4()
     test_single_match("[Ab]X+", MPM_ADD_VERBOSE | MPM_ADD_CASELESS | MPM_ADD_FIXED(6), MPM_COMPILE_VERBOSE | MPM_COMPILE_VERBOSE_STATS, subjects2);
     test_single_match("a?b*(cc+|de?f)", MPM_ADD_VERBOSE | MPM_ADD_CASELESS, MPM_COMPILE_VERBOSE | MPM_COMPILE_VERBOSE_STATS, subjects3);
     test_single_match("(m[xy]+m?n){2}", MPM_ADD_VERBOSE, MPM_COMPILE_VERBOSE | MPM_COMPILE_VERBOSE_STATS, subjects4);
+    test_single_match("\\x7f{2}", MPM_ADD_VERBOSE, MPM_COMPILE_VERBOSE | MPM_COMPILE_VERBOSE_STATS, subjects5);
+    test_single_match("\\x80{2}", MPM_ADD_VERBOSE, MPM_COMPILE_VERBOSE | MPM_COMPILE_VERBOSE_STATS, subjects5);
+    test_single_match("[a-\\x90]{3}", MPM_ADD_VERBOSE, MPM_COMPILE_VERBOSE | MPM_COMPILE_VERBOSE_STATS, subjects5);
 }
 
 static void test5()
@@ -202,13 +206,17 @@ static void test5()
 static void test6()
 {
     mpm_re *re;
+    int i;
     char * subjects1[] = { "maab", "aabb", "aa", "a", NULL };
     char * subjects2[] = { "maab", "aabb", "aa", "a", "m\naa", "\r\naa", "a\ra", "\raa\n", NULL };
+    char * subjects3[] = { "m\xab", "\n\xab", "\xab\n", NULL };
 
     printf("Test6: Testing multiline and ^ assertion.\n\n");
 
     test_single_match("^aa", MPM_ADD_VERBOSE, MPM_COMPILE_VERBOSE | MPM_COMPILE_VERBOSE_STATS, subjects1);
     test_single_match("^aa", MPM_ADD_MULTILINE | MPM_ADD_VERBOSE, MPM_COMPILE_VERBOSE | MPM_COMPILE_VERBOSE_STATS, subjects2);
+    test_single_match("^\\xab", MPM_ADD_MULTILINE | MPM_ADD_VERBOSE, MPM_COMPILE_VERBOSE | MPM_COMPILE_VERBOSE_STATS, subjects3);
+    test_single_match("^[^\\xab]", MPM_ADD_MULTILINE | MPM_ADD_VERBOSE, MPM_COMPILE_VERBOSE | MPM_COMPILE_VERBOSE_STATS, subjects3);
 
     re = test_mpm_create();
     if (!re)
@@ -217,6 +225,10 @@ static void test6()
     test_mpm_add_fail(re, "^(?:a|a*)", MPM_ADD_VERBOSE, MPM_EMPTY_PATTERN);
     test_mpm_add_fail(re, "^(?:a|a*)", MPM_ADD_MULTILINE | MPM_ADD_VERBOSE, MPM_EMPTY_PATTERN);
     test_mpm_add_fail(re, "^a|a", MPM_ADD_VERBOSE, MPM_UNSUPPORTED_PATTERN);
+
+    for (i = 0; i < 32; i++)
+        test_mpm_add(re, "A", 0);
+    test_mpm_add_fail(re, "B", 0, MPM_PATTERN_LIMIT);
     mpm_free(re);
 }
 
@@ -346,7 +358,6 @@ static void load_patterns(char* file_name,
                 printf("Cannot add regex: line:%d %s\n", line, source);
                 count_failed++;
             } else {
-printf("Pattern: %d /%s/\n", group_id, source);
                 count_supported++;
                 group_id = (group_id + 1) % groups;
             }
@@ -437,15 +448,15 @@ static void new_feature(void)
 
 #else
 
-   int i;
-   clock_t time;
-   unsigned int results[8];
+    int i;
+    clock_t time;
+    unsigned int results[8];
 
-   load_patterns("../../patterns2.txt",
-        /* load_regexes */ 1, 
+    load_patterns("../../patterns3.txt",
+        /* load_regexes */ 1,
         /* load_patterns */ 0,
-        /* max_loaded */ 32,
-        /* groups */ 8);
+        /* max_loaded */ 100,
+        /* groups */ 4);
 
     load_input("../../input.txt");
 

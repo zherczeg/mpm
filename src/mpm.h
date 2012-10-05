@@ -33,11 +33,12 @@ typedef struct mpm_re_internal mpm_re;
 #define MPM_NO_MEMORY                   1
 #define MPM_INTERNAL_ERROR              2
 #define MPM_INVALID_PATTERN             3
-#define MPM_EMPTY_PATTERN               4
-#define MPM_UNSUPPORTED_PATTERN         5
-#define MPM_RE_ALREADY_COMPILED         6
-#define MPM_RE_IS_NOT_COMPILED          7
-#define MPM_BIG_STATE_MACHINE           8
+#define MPM_UNSUPPORTED_PATTERN         4
+#define MPM_EMPTY_PATTERN               5
+#define MPM_PATTERN_LIMIT               6
+#define MPM_RE_ALREADY_COMPILED         7
+#define MPM_RE_IS_NOT_COMPILED          8
+#define MPM_STATE_MACHINE_LIMIT         9
 
 char *mpm_error_to_string(int error_code);
 
