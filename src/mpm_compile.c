@@ -30,10 +30,10 @@
 typedef struct mpm_hashitem {
     struct mpm_hashitem *next;
     struct mpm_hashitem *next_unprocessed;
-    mpm_offset_map *offset_map;
+    uint8_t *next_state_map;
     uint32_t hash;
     uint32_t id;
-    uint32_t offset_map_size;
+    uint32_t next_state_map_size;
     /* Variable length member. */
     uint32_t term_set[1];
 } mpm_hashitem;
@@ -130,8 +130,8 @@ static void hashmap_free(mpm_hashmap *map)
             item = buckets[i - 1];
             while (item) {
                 next = item->next;
-                if (item->offset_map)
-                    free(item->offset_map);
+                if (item->next_state_map)
+                    free(item->next_state_map);
                 free(item);
                 item = next;
             }
@@ -195,8 +195,8 @@ static uint32_t hashmap_insert(mpm_hashmap *map)
     }
     item->hash = hash;
     item->id = map->item_count;
-    item->offset_map_size = 0;
-    item->offset_map = NULL;
+    item->next_state_map = NULL;
+    item->next_state_map_size = 0;
     memcpy(item->term_set, current, record_size);
     map->item_count++;
 
@@ -550,15 +550,15 @@ int mpm_compile(mpm_re *re, int flags)
         }
 
         i = (last_id_index - id_indices) * sizeof(uint32_t);
-        MAP(next_unprocessed)->offset_map = (mpm_offset_map *)malloc(256 + i);
-        if (!MAP(next_unprocessed)->offset_map) {
+        MAP(next_unprocessed)->next_state_map_size = 256 + i;
+        MAP(next_unprocessed)->next_state_map = (uint8_t *)malloc(256 + i);
+        if (!MAP(next_unprocessed)->next_state_map) {
             hashmap_free(map);
             return MPM_NO_MEMORY;
         }
 
-        memcpy(MAP(next_unprocessed)->offset_map->map, id_map, 256);
-        memcpy(MAP(next_unprocessed)->offset_map->offsets, id_indices, i);
-        MAP(next_unprocessed)->offset_map_size = 256 + i;
+        memcpy(MAP(next_unprocessed)->next_state_map, id_map, 256);
+        memcpy(MAP(next_unprocessed)->next_state_map + 256, id_indices, i);
 
         MAP(next_unprocessed) = MAP(next_unprocessed)->next_unprocessed;
     } while (MAP(next_unprocessed));
@@ -601,7 +601,7 @@ int mpm_compile(mpm_re *re, int flags)
     while (id_offset < last_id_offset) {
         id_offset->offset = offset;
         /* At the moment we only support 32 end states. */
-        offset += sizeof(uint32_t) + id_offset->item->offset_map_size;
+        offset += sizeof(uint32_t) + id_offset->item->next_state_map_size;
         if (offset > 0x7fffffff) {
             hashmap_free(map);
             return MPM_BIG_STATE_MACHINE;
@@ -624,8 +624,8 @@ int mpm_compile(mpm_re *re, int flags)
 
     id_offset = MAP(id_offset_map);
     while (id_offset < last_id_offset) {
-        id_index = id_offset->item->offset_map->offsets;
-        last_id_index = id_index + ((id_offset->item->offset_map_size - 256) >> 2);
+        id_index = (uint32_t *)(id_offset->item->next_state_map + 256);
+        last_id_index = (uint32_t *)(id_offset->item->next_state_map + id_offset->item->next_state_map_size);
         offset = id_offset->offset;
         do {
             /* Resolve the states to physical offsets. */
@@ -633,12 +633,9 @@ int mpm_compile(mpm_re *re, int flags)
             id_index++;
         } while (id_index < last_id_index);
 
-        memcpy(compiled_pattern + id_offset->offset, id_offset->item->offset_map->map, 256);
-
-        ((uint32_t*)(compiled_pattern + id_offset->offset + 256))[0] = id_offset->item->term_set[MAP(term_set_length)];
-
-        memcpy(compiled_pattern + id_offset->offset + 256 + sizeof(uint32_t),
-            id_offset->item->offset_map->offsets, id_offset->item->offset_map_size - 256);
+        /* Combine the the state descriptor. */
+        ((uint32_t*)(compiled_pattern + id_offset->offset))[0] = id_offset->item->term_set[MAP(term_set_length)];
+        memcpy(compiled_pattern + id_offset->offset + sizeof(uint32_t), id_offset->item->next_state_map, id_offset->item->next_state_map_size);
         id_offset++;
     }
 

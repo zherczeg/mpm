@@ -80,20 +80,6 @@ struct mpm_re_internal {
     uint8_t* compiled_pattern;
 };
 
-typedef struct mpm_offset_map {
-    uint8_t map[256];
-    /* Variable length member. */
-    uint32_t offsets[1];
-} mpm_offset_map;
-
-/* Similar to offset map, but organized for better performance. */
-typedef struct mpm_state_map {
-    uint8_t map[256];
-    uint32_t end_states;
-    /* Variable length member. */
-    int32_t offsets[1];
-} mpm_state_map;
-
 #define CHARSET_CLEAR(set)          memset((set), 0x00, 32)
 #define CHARSET_SET(set)            memset((set), 0xff, 32)
 #define CHARSET_GETBIT(set, bit)    (((uint8_t*)(set))[(bit) >> 3] & (1 << ((bit) & 0x7)))
