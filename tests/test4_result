@@ -43,12 +43,12 @@ Processing    5: Active terms: <0>, Final states: <0>
 
 Hashmap statistics: items: 6 buckets: 1024 max bucket: 1 
 Compression save: 0.86% = 1 - (856 / 6148)
-Pattern: /aabc/ does not match
-Pattern: /a.b+c/ matches (0x1)
-Pattern: /a.b+/ does not match
-Pattern: /a.b+cd/ matches (0x1)
-Pattern: /mXa.b+c/ matches (0x1)
-Pattern: /na.b+/ does not match
+String: 'aabc' from 0 does not match
+String: 'a.b+c' from 0 matches (0x1)
+String: 'a.b+' from 0 does not match
+String: 'a.b+cd' from 0 matches (0x1)
+String: 'mXa.b+c' from 0 matches (0x1)
+String: 'na.b+' from 0 does not match
 
 DFA representation of /[Ab]X+/i
   Flags: fixed
@@ -99,11 +99,11 @@ Processing    6: Active terms: <0>, Final states: <0>
 
 Hashmap statistics: items: 7 buckets: 1024 max bucket: 1 
 Compression save: 0.86% = 1 - (1000 / 7172)
-Pattern: /AXX/ does not match
-Pattern: /[aB]x+/ matches (0x1)
-Pattern: /[Ab]X/ does not match
-Pattern: /::[AB]X+/ matches (0x1)
-Pattern: /::[ab]x+R/ matches (0x1)
+String: 'AXX' from 0 does not match
+String: '[aB]x+' from 0 matches (0x1)
+String: '[Ab]X' from 0 does not match
+String: '::[AB]X+' from 0 matches (0x1)
+String: '::[ab]x+R' from 0 matches (0x1)
 
 DFA representation of /a?b*(cc+|de?f)/i
   Flags: none
@@ -176,12 +176,12 @@ Processing    5: Active terms: <0-4>, Final states: <0>
 
 Hashmap statistics: items: 6 buckets: 1024 max bucket: 1 
 Compression save: 0.86% = 1 - (876 / 6148)
-Pattern: /m/ does not match
-Pattern: /abbc/ does not match
-Pattern: /MaBbcCc/ matches (0x1)
-Pattern: /DeF/ matches (0x1)
-Pattern: /MaBDfA/ matches (0x1)
-Pattern: /de/ does not match
+String: 'm' from 0 does not match
+String: 'abbc' from 0 does not match
+String: 'MaBbcCc' from 0 matches (0x1)
+String: 'DeF' from 0 matches (0x1)
+String: 'MaBDfA' from 0 matches (0x1)
+String: 'de' from 0 does not match
 
 DFA representation of /(m[xy]+m?n){2}/
   Flags: none
@@ -251,11 +251,11 @@ Processing    3: Active terms: <0,1,3>, Final states: <>
 
 Hashmap statistics: items: 9 buckets: 1024 max bucket: 1 
 Compression save: 0.86% = 1 - (1300 / 9220)
-Pattern: /mxnmy/ does not match
-Pattern: /mxxmnmyn/ matches (0x1)
-Pattern: /:%mxyxmnmyxxn%:/ matches (0x1)
-Pattern: /mnmn/ does not match
-Pattern: /<<<myynmxxmn>>/ matches (0x1)
+String: 'mxnmy' from 0 does not match
+String: 'mxxmnmyn' from 0 matches (0x1)
+String: ':%mxyxmnmyxxn%:' from 0 matches (0x1)
+String: 'mnmn' from 0 does not match
+String: '<<<myynmxxmn>>' from 0 matches (0x1)
 
 DFA representation of /\x7f{2}/
   Flags: none
@@ -281,9 +281,9 @@ Processing    2: Active terms: <0,1>, Final states: <0>
 
 Hashmap statistics: items: 3 buckets: 1024 max bucket: 1 
 Compression save: 0.74% = 1 - (804 / 3076)
-Pattern: /€/ matches (0x1)
-Pattern: /€€/ does not match
-Pattern: /€/ does not match
+String: '€' from 0 matches (0x1)
+String: '€€' from 0 does not match
+String: '€' from 0 does not match
 
 DFA representation of /\x80{2}/
   Flags: none
@@ -309,9 +309,9 @@ Processing    2: Active terms: <0,1>, Final states: <0>
 
 Hashmap statistics: items: 3 buckets: 1024 max bucket: 1 
 Compression save: 0.74% = 1 - (804 / 3076)
-Pattern: /€/ does not match
-Pattern: /€€/ matches (0x1)
-Pattern: /€/ does not match
+String: '€' from 0 does not match
+String: '€€' from 0 matches (0x1)
+String: '€' from 0 does not match
 
 DFA representation of /[a-\x90]{3}/
   Flags: none
@@ -342,7 +342,7 @@ Processing    3: Active terms: <0-2>, Final states: <0>
 
 Hashmap statistics: items: 4 buckets: 1024 max bucket: 1 
 Compression save: 0.74% = 1 - (1072 / 4100)
-Pattern: /€/ matches (0x1)
-Pattern: /€€/ matches (0x1)
-Pattern: /€/ does not match
+String: '€' from 0 matches (0x1)
+String: '€€' from 0 matches (0x1)
+String: '€' from 0 does not match
 

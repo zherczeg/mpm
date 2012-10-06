@@ -1,0 +1,31 @@
+Test7: Testing offsets.
+
+
+Test1:
+String: 'a
+a' from 0 matches (0x7)
+String: 'a
+a' from 2 matches (0x1)
+String: 'a
+a
+a' from 2 matches (0x5)
+
+Test2:
+String: 'a
+a' from 0 matches (0x3)
+String: 'a
+a
+' from 2 does not match
+String: 'a
+a
+a' from 2 matches (0x2)
+
+Test3:
+String: 'a
+a' from 0 matches (0x3)
+String: 'a
+a
+b' from 2 matches (0x1)
+String: 'a
+a
+a' from 2 matches (0x3)

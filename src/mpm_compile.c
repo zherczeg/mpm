@@ -194,11 +194,10 @@ static uint32_t hashmap_insert(mpm_hashmap *map)
         map->next_unprocessed = item;
     }
     item->hash = hash;
-    item->id = map->item_count;
+    item->id = map->item_count++;
     item->next_state_map = NULL;
     item->next_state_map_size = 0;
     memcpy(item->term_set, current, record_size);
-    map->item_count++;
 
     if (map->item_count < map->mask || map->mask > 0x10000000)
         return item->id;
@@ -362,29 +361,35 @@ int mpm_compile(mpm_re *re, int flags)
     uint32_t id_indices[256];
     uint32_t available_chars[CHAR_SET_SIZE];
     uint32_t consumed_chars[CHAR_SET_SIZE];
+    uint32_t state_map_size = (re->flags & RE_CHAR_SET_256) ? 256 : 128;
+    uint32_t non_newline_offset, newline_offset;
     uint32_t i, j, id, offset, pattern_flags;
-    uint32_t state_map_size = (re->compiled_pattern_flags & RE_CHAR_SET_256) ? 256 : 128;
 
-    if (re->next_id == 0)
+    if (!(re->flags & RE_MODE_COMPILE))
         return MPM_RE_ALREADY_COMPILED;
 
-    if (hashmap_init(map, re->next_term_index, re->next_id - 1)) {
+    if (hashmap_init(map, re->compile.next_term_index, re->compile.next_id - 1)) {
         hashmap_free(map);
         return MPM_NO_MEMORY;
     }
 
 #if defined MPM_VERBOSE && MPM_VERBOSE
-    if (flags & MPM_COMPILE_VERBOSE)
-        if (re->compiled_pattern_flags & RE_CHAR_SET_256)
+    if (flags & MPM_COMPILE_VERBOSE) {
+        if (re->flags & RE_CHAR_SET_256)
             puts("Full (0..255) char range is used.\n");
         else
             puts("Half (0..127) char range is used.\n");
+    }
 #endif
 
     /* Initialize data structures. */
     memset(MAP(start), 0, MAP(record_size));
-    pattern = re->patterns;
+    pattern = re->compile.patterns;
     pattern_flags = 0;
+    non_newline_offset = 0;
+    newline_offset = 0;
+    /* Possible start positions. Anchored matches are included,
+       and the starting [\r\n] is skipped for multiline matches. */
     while (pattern) {
         pattern_flags |= pattern->flags;
         word_code = pattern->word_code + pattern->term_range_size + 1;
@@ -416,9 +421,9 @@ int mpm_compile(mpm_re *re, int flags)
     }
 
     if (pattern_flags & (PATTERN_ANCHORED | PATTERN_MULTILINE)) {
-        /* We need to recalculate the start state. */
+        /* Possible start positions after a non-newline. Anchored matches are skipped. */
         memset(MAP(start), 0, MAP(record_size));
-        pattern = re->patterns;
+        pattern = re->compile.patterns;
         while (pattern) {
             if (pattern->flags & PATTERN_ANCHORED) {
                 pattern = pattern->next;
@@ -439,7 +444,45 @@ int mpm_compile(mpm_re *re, int flags)
         }
 
         memcpy(MAP(current), MAP(start), MAP(record_size));
-        if (hashmap_insert(map) == DFA_NO_DATA) {
+        non_newline_offset = hashmap_insert(map);
+        newline_offset = non_newline_offset;
+        if (non_newline_offset == DFA_NO_DATA) {
+            hashmap_free(map);
+            return MPM_NO_MEMORY;
+        }
+    }
+
+    if (pattern_flags & PATTERN_MULTILINE) {
+        /* Possible start positions after a newline. Anchored matches are skipped,
+           and the starting [\r\n] is skipped for multiline matches. */
+        memset(MAP(current), 0, MAP(record_size));
+        pattern = re->compile.patterns;
+        while (pattern) {
+            if (pattern->flags & PATTERN_ANCHORED) {
+                pattern = pattern->next;
+                continue;
+            }
+
+            word_code = pattern->word_code + pattern->term_range_size + 1;
+            if (pattern->flags & PATTERN_MULTILINE) {
+                DFA_SETBIT(MAP(current), word_code[0]);
+                word_code = pattern->word_code + pattern->word_code[word_code[0] - pattern->term_range_start];
+                word_code += CHAR_SET_SIZE + 1;
+            }
+            while (word_code[0] != DFA_NO_DATA) {
+                DFA_SETBIT(MAP(current), word_code[0]);
+                word_code++;
+            }
+            term = MAP(term_map) + pattern->term_range_start;
+            word_code = pattern->word_code;
+            last_term = term + pattern->term_range_size;
+            while (term < last_term)
+                *term++ = pattern->word_code + *word_code++;
+            pattern = pattern->next;
+        }
+
+        newline_offset = hashmap_insert(map);
+        if (newline_offset == DFA_NO_DATA) {
             hashmap_free(map);
             return MPM_NO_MEMORY;
         }
@@ -622,6 +665,8 @@ int mpm_compile(mpm_re *re, int flags)
         }
         id_offset++;
     }
+    non_newline_offset = MAP(id_offset_map)[non_newline_offset].offset;
+    newline_offset = MAP(id_offset_map)[newline_offset].offset;
 
 #if defined MPM_VERBOSE && MPM_VERBOSE
     i = sizeof(uint32_t) + (MAP(item_count) * sizeof(uint32_t) * 256);
@@ -655,13 +700,13 @@ int mpm_compile(mpm_re *re, int flags)
 
     /* Releasing unused memory. */
     hashmap_free(map);
-    re->next_id = 0;
-    if (re->patterns) {
-        mpm_free_patterns(re->patterns);
-        re->patterns = NULL;
-    }
+    re->flags &= ~RE_MODE_COMPILE;
+    if (re->compile.patterns)
+        mpm_free_patterns(re->compile.patterns);
 
-    re->compiled_pattern = compiled_pattern;
+    re->run.compiled_pattern = compiled_pattern;
+    re->run.non_newline_offset = non_newline_offset;
+    re->run.newline_offset = newline_offset;
 
     return MPM_NO_ERROR;
 }

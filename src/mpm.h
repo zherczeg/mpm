@@ -68,10 +68,7 @@ int mpm_add(mpm_re *re, char *pattern, int flags);
 int mpm_compile(mpm_re *re, int flags);
 
 /* Match the pattern. Returns non-zero if successful. */
-int mpm_exec(mpm_re *re, char *subject, int length, unsigned int *result);
-int mpm_exec3(mpm_re **re, char *subject, int length, unsigned int *result);
-int mpm_exec4(mpm_re **re, char *subject, int length, unsigned int *result);
-int mpm_exec6(mpm_re **re, char *subject, int length, unsigned int *result);
-int mpm_exec8(mpm_re **re, char *subject, int length, unsigned int *result);
+int mpm_exec(mpm_re *re, char *subject, int length, int offset, unsigned int *result);
+int mpm_exec4(mpm_re **re, char *subject, int length, int offset, unsigned int *result);
 
 #endif // mpm_h

@@ -33,11 +33,10 @@ mpm_re * mpm_create(void)
     if (!re)
         return NULL;
 
-    re->next_id = 1;
-    re->next_term_index = 0;
-    re->compiled_pattern_flags = 0;
-    re->patterns = NULL;
-    re->compiled_pattern = NULL;
+    re->flags = RE_MODE_COMPILE;
+    re->compile.patterns = NULL;
+    re->compile.next_id = 0;
+    re->compile.next_term_index = 0;
 
     return re;
 }
@@ -54,10 +53,13 @@ void mpm_free_patterns(mpm_re_pattern *pattern)
 
 void mpm_free(mpm_re *re)
 {
-    if (re->patterns)
-        mpm_free_patterns(re->patterns);
-    if (re->compiled_pattern)
-        free(re->compiled_pattern);
+    if (re->flags & RE_MODE_COMPILE) {
+        if (re->compile.patterns)
+            mpm_free_patterns(re->compile.patterns);
+    } else {
+        if (re->run.compiled_pattern)
+            free(re->run.compiled_pattern);
+    }
     free(re);
 }
 

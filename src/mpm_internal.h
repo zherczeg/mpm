@@ -80,16 +80,25 @@ typedef struct mpm_re_pattern {
     uint32_t word_code[1];
 } mpm_re_pattern;
 
-#define RE_CHAR_SET_256        0x1
+#define RE_MODE_COMPILE        0x1
+#define RE_CHAR_SET_256        0x2
 
 /* Internal representation of the regular expression. */
 struct mpm_re_internal {
     /* These members are used by mpm_add(). */
-    uint32_t next_id;
-    uint32_t next_term_index;
-    uint32_t compiled_pattern_flags;
-    mpm_re_pattern *patterns;
-    uint8_t* compiled_pattern;
+    uint32_t flags;
+    union {
+        struct {
+            mpm_re_pattern *patterns;
+            uint32_t next_id;
+            uint32_t next_term_index;
+        } compile;
+        struct {
+            uint8_t* compiled_pattern;
+            uint32_t non_newline_offset;
+            uint32_t newline_offset;
+        } run;
+    };
 };
 
 #define CHARSET_CLEAR(set)          memset((set), 0x00, 32)

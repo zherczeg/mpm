@@ -72,26 +72,26 @@ static void test_mpm_compile(mpm_re *re, int flags)
     }
 }
 
-static void test_mpm_exec(mpm_re *re, char *subject)
+static void test_mpm_exec(mpm_re *re, char *subject, int offset)
 {
     unsigned int result[1];
-    int error_code = mpm_exec(re, subject, strlen(subject), result);
+    int error_code = mpm_exec(re, subject, strlen(subject), offset, result);
     if (error_code != MPM_NO_ERROR) {
         printf("WARNING: mpm_compile is failed: %s\n\n", mpm_error_to_string(error_code));
         test_failed = 1;
         return;
     }
     if (result[0] == 0)
-        printf("Pattern: /%s/ does not match\n", subject);
+        printf("String: '%s' from %d does not match\n", subject, offset);
     else
-        printf("Pattern: /%s/ matches (0x%x)\n", subject, (int)result[0]);
+        printf("String: '%s' from %d matches (0x%x)\n", subject, offset, (int)result[0]);
 }
 
 static void test_multiple_match(mpm_re *re, int compile_flags, char **subject)
 {
     test_mpm_compile(re, compile_flags);
     while (subject[0]) {
-        test_mpm_exec(re, subject[0]);
+        test_mpm_exec(re, subject[0], 0);
         subject++;
     }
     puts("");
@@ -158,6 +158,8 @@ static void test2()
     test_mpm_add_fail(re, "a?b?", MPM_ADD_VERBOSE, MPM_EMPTY_PATTERN);
     test_mpm_add_fail(re, "a|b?", MPM_ADD_VERBOSE, MPM_EMPTY_PATTERN);
     test_mpm_add_fail(re, "", MPM_ADD_VERBOSE, MPM_EMPTY_PATTERN);
+    test_mpm_add_fail(re, "(.)\\1", MPM_ADD_VERBOSE, MPM_UNSUPPORTED_PATTERN);
+    test_mpm_add_fail(re, "(?", MPM_ADD_VERBOSE, MPM_INVALID_PATTERN);
 
     mpm_free(re);
 }
@@ -232,11 +234,58 @@ static void test6()
     mpm_free(re);
 }
 
-#define MAX_TESTS 6
+static void test7()
+{
+    mpm_re *re;
+
+    printf("Test7: Testing offsets.\n\n");
+
+    re = test_mpm_create();
+    if (!re)
+        return;
+
+    printf("\nTest1:\n");
+    test_mpm_add(re, "^a", MPM_ADD_MULTILINE);
+    test_mpm_add(re, "^a", 0);
+    test_mpm_add(re, "\\na", 0);
+    test_mpm_compile(re, 0);
+    test_mpm_exec(re, "a\na", 0);
+    test_mpm_exec(re, "a\na", 2);
+    test_mpm_exec(re, "a\na\na", 2);
+    mpm_free(re);
+
+    re = test_mpm_create();
+    if (!re)
+        return;
+
+    printf("\nTest2:\n");
+    test_mpm_add(re, "^a", 0);
+    test_mpm_add(re, "\\na", 0);
+    test_mpm_compile(re, 0);
+    test_mpm_exec(re, "a\na", 0);
+    test_mpm_exec(re, "a\na\n", 2);
+    test_mpm_exec(re, "a\na\na", 2);
+    mpm_free(re);
+
+    re = test_mpm_create();
+    if (!re)
+        return;
+
+    printf("\nTest3:\n");
+    test_mpm_add(re, "^a", MPM_ADD_MULTILINE);
+    test_mpm_add(re, "\\na", 0);
+    test_mpm_compile(re, 0);
+    test_mpm_exec(re, "a\na", 0);
+    test_mpm_exec(re, "a\na\nb", 2);
+    test_mpm_exec(re, "a\na\na", 2);
+    mpm_free(re);
+}
+
+#define MAX_TESTS 7
 
 static test_case tests[MAX_TESTS] = {
     test1, test2, test3, test4, test5,
-    test6
+    test6, test7
 };
 
 /* ----------------------------------------------------------------------- */
@@ -440,9 +489,9 @@ static void new_feature(void)
     test_mpm_add(re, "ma?", MPM_ADD_VERBOSE);
     test_mpm_add(re, "aa", MPM_ADD_VERBOSE | MPM_ADD_FIXED(2));
     test_mpm_compile(re, MPM_COMPILE_VERBOSE | MPM_COMPILE_VERBOSE_STATS);
-    test_mpm_exec(re, "mmaa bb");
-    test_mpm_exec(re, "aa");
-    test_mpm_exec(re, "aax");
+    test_mpm_exec(re, "mmaa bb", 0);
+    test_mpm_exec(re, "aa", 0);
+    test_mpm_exec(re, "aax", 0);
 
     mpm_free(re);
 
@@ -462,13 +511,13 @@ static void new_feature(void)
 
     time = clock();
     for (i = 0; i < 32; ++i)
-        mpm_exec(loaded_re[0], input, input_length, results);
+        mpm_exec(loaded_re[0], input, input_length, 0, results);
     time = clock() - time;
     printf("Sequential run: %d ms (average)\n", (int)(time * 1000 / (CLOCKS_PER_SEC * 32)));
 
     time = clock();
     for (i = 0; i < 32; ++i)
-        mpm_exec4(loaded_re, input, input_length, results);
+        mpm_exec4(loaded_re, input, input_length, 0, results);
     time = clock() - time;
     printf("Parallel run (4): %d ms (average)\n", (int)(time * 1000 / (CLOCKS_PER_SEC * 4 * 32)));
 

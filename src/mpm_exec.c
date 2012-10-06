@@ -36,7 +36,7 @@
 #define NEXT_STATE_MAP(map, offset) \
     ((map) + (offset))
 
-int mpm_exec(mpm_re *re, char *subject, int length, unsigned int *result)
+int mpm_exec(mpm_re *re, char *subject, int length, int offset, unsigned int *result)
 {
     uint32_t current_character;
     uint8_t *state_map;
@@ -44,17 +44,28 @@ int mpm_exec(mpm_re *re, char *subject, int length, unsigned int *result)
     uint32_t current_result;
     uint32_t end_states;
 
-    if (re->next_id != 0)
+    if (re->flags & RE_MODE_COMPILE)
         return MPM_RE_IS_NOT_COMPILED;
+
+    length -= offset;
+    subject += offset;
     if (length == 0) {
         result[0] = 0;
         return MPM_NO_ERROR;
     }
 
+
     /* Simple matcher. */
-    state_map = re->compiled_pattern + sizeof(uint32_t);
+    state_map = re->run.compiled_pattern + sizeof(uint32_t);
     current_result = 0;
-    if (!(re->compiled_pattern_flags & RE_CHAR_SET_256)) {
+    if (offset > 0) {
+        if (subject[-1] == '\n' || subject[-1] == '\r')
+            state_map += re->run.newline_offset;
+        else
+            state_map += re->run.non_newline_offset;
+    }
+
+    if (!(re->flags & RE_CHAR_SET_256)) {
         do {
             /* The squence is optimized for performance. */
             current_character = *(uint8_t*)subject;
@@ -82,7 +93,7 @@ int mpm_exec(mpm_re *re, char *subject, int length, unsigned int *result)
     return MPM_NO_ERROR;
 }
 
-int mpm_exec4(mpm_re **re, char *subject, int length, unsigned int *result)
+int mpm_exec4(mpm_re **re, char *subject, int length, int offset, unsigned int *result)
 {
     uint32_t current_character;
     uint8_t *state_map0, *state_map1, *state_map2, *state_map3;
@@ -90,9 +101,12 @@ int mpm_exec4(mpm_re **re, char *subject, int length, unsigned int *result)
     uint32_t current_result0, current_result1, current_result2, current_result3;
     uint32_t end_states0, end_states1, end_states2, end_states3;
 
-    if (re[0]->next_id != 0 || re[1]->next_id != 0 || re[2]->next_id != 0 || re[3]->next_id != 0)
+    if ((re[0]->flags & RE_MODE_COMPILE) || (re[1]->flags & RE_MODE_COMPILE)
+            || (re[2]->flags & RE_MODE_COMPILE) || (re[3]->flags & RE_MODE_COMPILE))
         return MPM_RE_IS_NOT_COMPILED;
 
+    length -= offset;
+    subject += offset;
     if (length == 0) {
         result[0] = 0;
         result[1] = 0;
@@ -102,10 +116,10 @@ int mpm_exec4(mpm_re **re, char *subject, int length, unsigned int *result)
     }
 
     /* Simple matcher. */
-    state_map0 = re[0]->compiled_pattern + sizeof(uint32_t);
-    state_map1 = re[1]->compiled_pattern + sizeof(uint32_t);
-    state_map2 = re[2]->compiled_pattern + sizeof(uint32_t);
-    state_map3 = re[3]->compiled_pattern + sizeof(uint32_t);
+    state_map0 = re[0]->run.compiled_pattern + sizeof(uint32_t);
+    state_map1 = re[1]->run.compiled_pattern + sizeof(uint32_t);
+    state_map2 = re[2]->run.compiled_pattern + sizeof(uint32_t);
+    state_map3 = re[3]->run.compiled_pattern + sizeof(uint32_t);
     current_result0 = 0;
     current_result1 = 0;
     current_result2 = 0;

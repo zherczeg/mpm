@@ -25,10 +25,10 @@ Processing    1: Active terms: <>, Final states: <>
 
 Hashmap statistics: items: 4 buckets: 1024 max bucket: 1 
 Compression save: 0.87% = 1 - (552 / 4100)
-Pattern: /maab/ does not match
-Pattern: /aabb/ matches (0x1)
-Pattern: /aa/ matches (0x1)
-Pattern: /a/ does not match
+String: 'maab' from 0 does not match
+String: 'aabb' from 0 matches (0x1)
+String: 'aa' from 0 matches (0x1)
+String: 'a' from 0 does not match
 
 DFA representation of /^aa/m
   Flags: multiline
@@ -61,17 +61,17 @@ Processing    1: Active terms: <0>, Final states: <>
 
 Hashmap statistics: items: 4 buckets: 1024 max bucket: 1 
 Compression save: 0.86% = 1 - (568 / 4100)
-Pattern: /maab/ does not match
-Pattern: /aabb/ matches (0x1)
-Pattern: /aa/ matches (0x1)
-Pattern: /a/ does not match
-Pattern: /m
-aa/ matches (0x1)
-Pattern: /
-aa/ matches (0x1)
-Pattern: /aa/ does not match
-Pattern: /aa
-/ matches (0x1)
+String: 'maab' from 0 does not match
+String: 'aabb' from 0 matches (0x1)
+String: 'aa' from 0 matches (0x1)
+String: 'a' from 0 does not match
+String: 'm
+aa' from 0 matches (0x1)
+String: '
+aa' from 0 matches (0x1)
+String: 'aa' from 0 does not match
+String: 'aa
+' from 0 matches (0x1)
 
 DFA representation of /^\xab/m
   Flags: multiline
@@ -98,11 +98,11 @@ Processing    1: Active terms: <0>, Final states: <>
 
 Hashmap statistics: items: 3 buckets: 1024 max bucket: 1 
 Compression save: 0.74% = 1 - (808 / 3076)
-Pattern: /m«/ does not match
-Pattern: /
-«/ matches (0x1)
-Pattern: /«
-/ matches (0x1)
+String: 'm«' from 0 does not match
+String: '
+«' from 0 matches (0x1)
+String: '«
+' from 0 matches (0x1)
 
 DFA representation of /^[^\xab]/m
   Flags: multiline
@@ -133,11 +133,11 @@ Processing    1: Active terms: <0>, Final states: <>
 
 Hashmap statistics: items: 4 buckets: 1024 max bucket: 1 
 Compression save: 0.74% = 1 - (1080 / 4100)
-Pattern: /m«/ matches (0x1)
-Pattern: /
-«/ matches (0x1)
-Pattern: /«
-/ does not match
+String: 'm«' from 0 matches (0x1)
+String: '
+«' from 0 matches (0x1)
+String: '«
+' from 0 does not match
 
 DFA representation of /^(?:a|a*)/
   Flags: anchored

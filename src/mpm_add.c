@@ -797,10 +797,10 @@ int mpm_add(mpm_re *re, char *pattern, int flags)
     uint32_t full_char_range = 0;
     mpm_re_pattern *re_pattern;
 
-    if (re->next_id == 0)
+    if (!(re->flags & RE_MODE_COMPILE))
         return MPM_RE_ALREADY_COMPILED;
 
-    if (re->next_id > PATTERN_LIMIT)
+    if (re->compile.next_id >= PATTERN_LIMIT)
         return MPM_PATTERN_LIMIT;
 
     size = GET_FIXED_SIZE(flags);
@@ -833,8 +833,14 @@ int mpm_add(mpm_re *re, char *pattern, int flags)
             options |= PCRE_EXTENDED;
 
         pcre_re = mpm_pcre_compile(pattern, options, &errptr, &erroffset, NULL);
-        if (!pcre_re)
+        if (!pcre_re) {
+            pcre_re = mpm_pcre_compile(pattern, options ^ PCRE_NO_AUTO_CAPTURE, &errptr, &erroffset, NULL);
+            if (pcre_re) {
+                mpm_pcre_free(pcre_re);
+                return MPM_UNSUPPORTED_PATTERN;
+            }
             return MPM_INVALID_PATTERN;
+        }
 
         /* Process the internal representation of PCRE. */
         real_pcre_re = (REAL_PCRE *)pcre_re;
@@ -905,7 +911,7 @@ int mpm_add(mpm_re *re, char *pattern, int flags)
 
 #if defined MPM_VERBOSE && MPM_VERBOSE
     if (flags & MPM_ADD_VERBOSE) {
-        term_index = re->next_term_index;
+        term_index = re->compile.next_term_index;
         word_code = word_code_start;
         printf("DFA representation of /%s/%s%s%s%s%s\n", pattern,
             (flags & MPM_ADD_CASELESS) ? "i" : "",
@@ -944,11 +950,11 @@ int mpm_add(mpm_re *re, char *pattern, int flags)
                 break;
             }
         } while ((word_code[0] & OPCODE_MASK) != OPCODE_END);
-        printf("  %5d: END (id:%d)\n\n", (int)(word_code - word_code_start), re->next_id - 1);
+        printf("  %5d: END (id:%d)\n\n", (int)(word_code - word_code_start), re->compile.next_id);
     }
 #endif
 
-    if (!(re->compiled_pattern_flags & RE_CHAR_SET_256)) {
+    if (!(re->flags & RE_CHAR_SET_256)) {
         word_code = word_code_start;
         while ((word_code[0] & OPCODE_MASK) != OPCODE_END) {
             if ((word_code[0] & OPCODE_MASK) == OPCODE_SET) {
@@ -990,23 +996,23 @@ int mpm_add(mpm_re *re, char *pattern, int flags)
     }
 
     re_pattern->flags = pattern_flags;
-    re_pattern->term_range_start = re->next_term_index;
+    re_pattern->term_range_start = re->compile.next_term_index;
     re_pattern->term_range_size = term_index;
 
     word_code = word_code_start;
     dfa_offset = re_pattern->word_code + term_index;
     term_index = 0;
-    dfa_offset[0] = re->next_id - 1;
+    dfa_offset[0] = re->compile.next_id;
     dfa_offset = get_reached_states(word_code_start, word_code_start,
-        dfa_offset, re->next_term_index);
+        dfa_offset, re->compile.next_term_index);
 
     while ((word_code[0] & OPCODE_MASK) != OPCODE_END) {
         if ((word_code[0] & OPCODE_MASK) == OPCODE_SET) {
             re_pattern->word_code[term_index] = dfa_offset - re_pattern->word_code;
             memcpy(dfa_offset, word_code + 1, 32);
-            dfa_offset[8] = re->next_id - 1;
+            dfa_offset[8] = re->compile.next_id;
             dfa_offset = get_reached_states(word_code_start, word_code + 1 + CHAR_SET_SIZE,
-                dfa_offset + CHAR_SET_SIZE, re->next_term_index);
+                dfa_offset + CHAR_SET_SIZE, re->compile.next_term_index);
             term_index++;
             word_code += CHAR_SET_SIZE;
         }
@@ -1029,7 +1035,7 @@ int mpm_add(mpm_re *re, char *pattern, int flags)
                 dfa_offset++;
             } else {
                 dfa_offset = re_pattern->word_code + re_pattern->word_code[term_index - 1];
-                printf("  %5d%c: [", re->next_term_index + term_index - 1, dfa_offset[8] != DFA_NO_DATA ? '!' : ' ');
+                printf("  %5d%c: [", re->compile.next_term_index + term_index - 1, dfa_offset[8] != DFA_NO_DATA ? '!' : ' ');
                 mpm_print_char_range((uint8_t *)dfa_offset);
                 putc(']', stdout);
                 dfa_offset += CHAR_SET_SIZE + 1;
@@ -1058,13 +1064,13 @@ int mpm_add(mpm_re *re, char *pattern, int flags)
     }
 
     /* Insert the pattern. */
-    re_pattern->next = re->patterns;
-    re->patterns = re_pattern;
+    re_pattern->next = re->compile.patterns;
+    re->compile.patterns = re_pattern;
 
-    re->next_id++;
-    re->next_term_index += re_pattern->term_range_size;
+    re->compile.next_id++;
+    re->compile.next_term_index += re_pattern->term_range_size;
     if (full_char_range)
-        re->compiled_pattern_flags |= RE_CHAR_SET_256;
+        re->flags |= RE_CHAR_SET_256;
 
     return MPM_NO_ERROR;
 }

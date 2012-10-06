@@ -19,5 +19,6 @@ runTest 3
 runTest 4
 runTest 5
 runTest 6
+runTest 7
 
 rm test_result
