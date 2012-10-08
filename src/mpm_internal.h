@@ -81,6 +81,7 @@ typedef struct mpm_re_pattern {
 } mpm_re_pattern;
 
 #define RE_MODE_COMPILE        0x1
+/* Midify mpm_exec4 if you change this constant. */
 #define RE_CHAR_SET_256        0x2
 
 /* Internal representation of the regular expression. */
