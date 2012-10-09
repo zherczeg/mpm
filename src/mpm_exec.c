@@ -69,7 +69,7 @@ int mpm_exec(mpm_re *re, char *subject, int length, int offset, unsigned int *re
         do {
             /* The squence is optimized for performance. */
             current_character = *(uint8_t*)subject;
-            next_offset = state_map[current_character < 128 ? current_character : 128];
+            next_offset = state_map[current_character <= 127 ? current_character : 127];
             end_states = GET_END_STATES(state_map);
             next_offset = GET_NEXT_OFFSET(state_map, 128, next_offset);
             subject++;
