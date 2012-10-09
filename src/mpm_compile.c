@@ -344,7 +344,7 @@ static void hashmap_stats(mpm_hashmap *map)
 /* Accessing members of the hash map. */
 #define MAP(id) (map_data.id)
 
-int mpm_compile(mpm_re *re, int flags)
+int mpm_compile(mpm_re *re, mpm_uint32 flags)
 {
     mpm_hashmap map_data;
     mpm_hashmap *map = &map_data;

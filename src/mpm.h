@@ -24,6 +24,14 @@
 #ifndef mpm_h
 #define mpm_h
 
+/* Types required by MPM. */
+  /* An unsigned byte character representation (0-255). */
+typedef unsigned char mpm_char8;
+  /* Length of the subject. */
+typedef unsigned long mpm_size;
+  /* 32 patterns are supported by the results vector. */
+typedef unsigned int mpm_uint32;
+
 /* Internal representation of a multipattern. */
 struct mpm_re_internal;
 typedef struct mpm_re_internal mpm_re;
@@ -58,17 +66,17 @@ void mpm_free(mpm_re *re);
    The maximum size of a fixed string is 64K. */
 #define MPM_ADD_FIXED(size)             (((size) & 0xffff) << 8)
 
-int mpm_add(mpm_re *re, char *pattern, int flags);
+int mpm_add(mpm_re *re, mpm_char8 *pattern, mpm_uint32 flags);
 
 /* Compile the pattern. */
   /* Generate all end states. Faster, but more memory is consumed. */
 #define MPM_COMPILE_VERBOSE             0x001
 #define MPM_COMPILE_VERBOSE_STATS       0x002
 
-int mpm_compile(mpm_re *re, int flags);
+int mpm_compile(mpm_re *re, mpm_uint32 flags);
 
 /* Match the pattern. Returns non-zero if successful. */
-int mpm_exec(mpm_re *re, char *subject, int length, int offset, unsigned int *result);
-int mpm_exec4(mpm_re **re, char *subject, int length, int offset, unsigned int *result);
+int mpm_exec(mpm_re *re, mpm_char8 *subject, mpm_size length, mpm_size offset, mpm_uint32 *result);
+int mpm_exec4(mpm_re **re, mpm_char8 *subject, mpm_size length, mpm_size offset, mpm_uint32 *result);
 
 #endif // mpm_h

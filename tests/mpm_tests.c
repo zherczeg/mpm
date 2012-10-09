@@ -45,7 +45,7 @@ static mpm_re * test_mpm_create()
 
 static void test_mpm_add(mpm_re *re, char *pattern, int flags)
 {
-    int error_code = mpm_add(re, pattern, flags);
+    int error_code = mpm_add(re, (mpm_char8*)pattern, flags);
     if (error_code != MPM_NO_ERROR) {
         printf("WARNING: mpm_add is failed: %s\n\n", mpm_error_to_string(error_code));
         test_failed = 1;
@@ -54,7 +54,7 @@ static void test_mpm_add(mpm_re *re, char *pattern, int flags)
 
 static void test_mpm_add_fail(mpm_re *re, char *pattern, int flags, int error)
 {
-    int error_code = mpm_add(re, pattern, flags);
+    int error_code = mpm_add(re, (mpm_char8*)pattern, flags);
     if (error_code != error) {
         printf("WARNING: expected error of mpm_add does not occur!\n\n");
         test_failed = 1;
@@ -75,7 +75,7 @@ static void test_mpm_compile(mpm_re *re, int flags)
 static void test_mpm_exec(mpm_re *re, char *subject, int offset)
 {
     unsigned int result[1];
-    int error_code = mpm_exec(re, subject, strlen(subject), offset, result);
+    int error_code = mpm_exec(re, (mpm_char8*)subject, strlen(subject), offset, result);
     if (error_code != MPM_NO_ERROR) {
         printf("WARNING: mpm_compile is failed: %s\n\n", mpm_error_to_string(error_code));
         test_failed = 1;
@@ -403,7 +403,7 @@ static void load_patterns(char* file_name,
 
             source[0] = '\0';
             source = data + ((data[6] == '!') ? 9 : 8);
-            if (mpm_add(loaded_re[group_id], source, flags) != MPM_NO_ERROR) {
+            if (mpm_add(loaded_re[group_id], (mpm_char8*)source, flags) != MPM_NO_ERROR) {
                 printf("Cannot add regex: line:%d %s\n", line, source);
                 count_failed++;
             } else {
@@ -431,7 +431,7 @@ static void load_patterns(char* file_name,
                 destination[0] = '\0';
             }
 
-            if (mpm_add(loaded_re[group_id], data + 8, MPM_ADD_FIXED(destination - (data + 8))) != MPM_NO_ERROR) {
+            if (mpm_add(loaded_re[group_id], (mpm_char8*)(data + 8), MPM_ADD_FIXED(destination - (data + 8))) != MPM_NO_ERROR) {
                 printf("WARNING: Cannot add fixed string: line:%d %s\n", line, data + 8);
                 count_failed++;
             } else {
@@ -511,13 +511,13 @@ static void new_feature(void)
 
     time = clock();
     for (i = 0; i < 32; ++i)
-        mpm_exec(loaded_re[0], input, input_length, 0, results);
+        mpm_exec(loaded_re[0], (mpm_char8*)input, input_length, 0, results);
     time = clock() - time;
     printf("Sequential run: %d ms (average)\n", (int)(time * 1000 / (CLOCKS_PER_SEC * 32)));
 
     time = clock();
     for (i = 0; i < 32; ++i)
-        mpm_exec4(loaded_re, input, input_length, 0, results);
+        mpm_exec4(loaded_re, (mpm_char8*)input, input_length, 0, results);
     time = clock() - time;
     printf("Parallel run (4): %d ms (average)\n", (int)(time * 1000 / (CLOCKS_PER_SEC * 4 * 32)));
 

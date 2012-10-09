@@ -358,6 +358,7 @@ define a macro for memmove() if HAVE_MEMMOVE is false, provided that HAVE_BCOPY
 is set. Otherwise, include an emulating function for those systems that have
 neither (there some non-Unix environments where this is the case). */
 
+#if 0
 #ifndef HAVE_MEMMOVE
 #undef  memmove        /* some systems may have a macro */
 #ifdef HAVE_BCOPY
@@ -386,6 +387,7 @@ else
 #endif   /* not HAVE_BCOPY */
 #endif   /* not HAVE_MEMMOVE */
 #endif   /* not VPCOMPAT */
+#endif
 
 
 /* PCRE keeps offsets in its compiled code as 2-byte quantities (always stored

@@ -36,7 +36,7 @@
 #define NEXT_STATE_MAP(map, offset) \
     ((map) + (offset))
 
-int mpm_exec(mpm_re *re, char *subject, int length, int offset, unsigned int *result)
+int mpm_exec(mpm_re *re, mpm_char8 *subject, mpm_size length, mpm_size offset, mpm_uint32 *result)
 {
     uint32_t current_character;
     uint8_t *state_map;
@@ -123,7 +123,7 @@ int mpm_exec(mpm_re *re, char *subject, int length, int offset, unsigned int *re
 #define T128 (current_character <= 127) ? current_character : 127
 #define T256 current_character
 
-int mpm_exec4(mpm_re **re, char *subject, int length, int offset, unsigned int *result)
+int mpm_exec4(mpm_re **re, mpm_char8 *subject, mpm_size length, mpm_size offset, mpm_uint32 *result)
 {
     uint32_t current_character;
     uint8_t *state_map0, *state_map1, *state_map2, *state_map3;

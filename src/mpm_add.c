@@ -680,13 +680,13 @@ static int32_t * generate_nfa_bracket(int32_t *word_code,
 /*                            Fixed pattern support.                       */
 /* ----------------------------------------------------------------------- */
 
-static int32_t * generate_fixed_pattern(int32_t *word_code, char *pattern, uint32_t size, int caseless)
+static int32_t * generate_fixed_pattern(int32_t *word_code, mpm_char8 *pattern, uint32_t size, int caseless)
 {
     uint32_t value;
 
     do {
         word_code[0] = OPCODE_SET;
-        value = (unsigned char)pattern[0];
+        value = (uint8_t)pattern[0];
 
         CHARSET_CLEAR(word_code + 1);
         CHARSET_SETBIT(word_code + 1, value);
@@ -781,7 +781,7 @@ static uint32_t * get_reached_states(int32_t *word_code, int32_t *from,
 /*                                Main function.                           */
 /* ----------------------------------------------------------------------- */
 
-int mpm_add(mpm_re *re, char *pattern, int flags)
+int mpm_add(mpm_re *re, mpm_char8 *pattern, mpm_uint32 flags)
 {
     pcre *pcre_re;
     const char *errptr;
@@ -832,9 +832,9 @@ int mpm_add(mpm_re *re, char *pattern, int flags)
         if (flags & MPM_ADD_EXTENDED)
             options |= PCRE_EXTENDED;
 
-        pcre_re = mpm_pcre_compile(pattern, options, &errptr, &erroffset, NULL);
+        pcre_re = mpm_pcre_compile((char*)pattern, options, &errptr, &erroffset, NULL);
         if (!pcre_re) {
-            pcre_re = mpm_pcre_compile(pattern, options ^ PCRE_NO_AUTO_CAPTURE, &errptr, &erroffset, NULL);
+            pcre_re = mpm_pcre_compile((char*)pattern, options ^ PCRE_NO_AUTO_CAPTURE, &errptr, &erroffset, NULL);
             if (pcre_re) {
                 mpm_pcre_free(pcre_re);
                 return MPM_UNSUPPORTED_PATTERN;
