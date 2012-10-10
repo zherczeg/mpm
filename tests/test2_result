@@ -569,7 +569,7 @@ DFA representation of /(ab|cd(mn|op)+|ef(gh)?)*/
     198 : [g] 199
     199!: [h] 188 190 196
 
-Expected error: 'Pattern matches an empty string' occured
+Expected error: 'Pattern matches an empty string (matches to any input)' occured
 
 DFA representation of /a?b?/
   Flags: none
@@ -583,7 +583,7 @@ DFA representation of /a?b?/
     188!: [a] 189
     189!: [b]
 
-Expected error: 'Pattern matches an empty string' occured
+Expected error: 'Pattern matches an empty string (matches to any input)' occured
 
 DFA representation of /a|b?/
   Flags: none
@@ -598,7 +598,7 @@ DFA representation of /a|b?/
     188!: [a]
     189!: [b]
 
-Expected error: 'Pattern matches an empty string' occured
+Expected error: 'Pattern matches an empty string (matches to any input)' occured
 
 DFA representation of //
   Flags: none
@@ -606,9 +606,9 @@ DFA representation of //
 
   START!:
 
-Expected error: 'Pattern matches an empty string' occured
+Expected error: 'Pattern matches an empty string (matches to any input)' occured
 
-Expected error: 'Pattern is not supported by MPM' occured
+Expected error: 'Pattern is not supported by MPM library.' occured
 
 Expected error: 'Pattern cannot be compiled by PCRE' occured
 

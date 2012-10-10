@@ -501,7 +501,7 @@ static void new_feature(void)
     clock_t time;
     unsigned int results[8];
 
-    load_patterns("../../patterns2.txt",
+    load_patterns("../../patterns3.txt",
         /* load_regexes */ 1,
         /* load_patterns */ 0,
         /* max_loaded */ 128,

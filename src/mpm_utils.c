@@ -75,9 +75,9 @@ char *mpm_error_to_string(int error_code)
     case MPM_INVALID_PATTERN:
         return "Pattern cannot be compiled by PCRE";
     case MPM_UNSUPPORTED_PATTERN:
-        return "Pattern is not supported by MPM";
+        return "Pattern is not supported by MPM library.";
     case MPM_EMPTY_PATTERN:
-        return "Pattern matches an empty string";
+        return "Pattern matches an empty string (matches to any input)";
     case MPM_PATTERN_LIMIT:
         return "Cannot add more regular expressions (max " TOSTRING(PATTERN_LIMIT) ")";
     case MPM_RE_ALREADY_COMPILED:
@@ -85,7 +85,7 @@ char *mpm_error_to_string(int error_code)
     case MPM_RE_IS_NOT_COMPILED:
         return "Pattern must be compiled first by mpm_compile";
     case MPM_STATE_MACHINE_LIMIT:
-        return "Size of state machine is reached (max " TOSTRING(STATE_LIMIT) " states)";
+        return "Number of allowed states is reached (max " TOSTRING(STATE_LIMIT) " states)";
     default:
         return "Unknown error code";
     }

@@ -123,7 +123,7 @@ int mpm_exec(mpm_re *re, mpm_char8 *subject, mpm_size length, mpm_size offset, m
 #define T128 (current_character <= 127) ? current_character : 127
 #define T256 current_character
 
-int mpm_exec4(mpm_re **re, mpm_char8 *subject, mpm_size length, mpm_size offset, mpm_uint32 *result)
+int mpm_exec4(mpm_re **re, mpm_char8 *subject, mpm_size length, mpm_size offset, mpm_uint32 *results)
 {
     uint32_t current_character;
     uint8_t *state_map0, *state_map1, *state_map2, *state_map3;
@@ -138,10 +138,10 @@ int mpm_exec4(mpm_re **re, mpm_char8 *subject, mpm_size length, mpm_size offset,
     length -= offset;
     subject += offset;
     if (length == 0) {
-        result[0] = 0;
-        result[1] = 0;
-        result[2] = 0;
-        result[3] = 0;
+        results[0] = 0;
+        results[1] = 0;
+        results[2] = 0;
+        results[3] = 0;
         return MPM_NO_ERROR;
     }
 
@@ -222,9 +222,9 @@ int mpm_exec4(mpm_re **re, mpm_char8 *subject, mpm_size length, mpm_size offset,
         break;
     }
 
-    result[0] = current_result0 | GET_END_STATES(state_map0);
-    result[1] = current_result1 | GET_END_STATES(state_map1);
-    result[2] = current_result2 | GET_END_STATES(state_map2);
-    result[3] = current_result3 | GET_END_STATES(state_map3);
+    results[0] = current_result0 | GET_END_STATES(state_map0);
+    results[1] = current_result1 | GET_END_STATES(state_map1);
+    results[2] = current_result2 | GET_END_STATES(state_map2);
+    results[3] = current_result3 | GET_END_STATES(state_map3);
     return MPM_NO_ERROR;
 }

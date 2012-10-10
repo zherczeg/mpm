@@ -1,4 +1,5 @@
 Makefile.in
+doc/html
 src/Makefile.in
 tests/Makefile.in
 INSTALL

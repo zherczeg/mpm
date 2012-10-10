@@ -153,7 +153,7 @@ DFA representation of /^(?:a|a*)/
       0!: [a]
       1!: [a] 1
 
-Expected error: 'Pattern matches an empty string' occured
+Expected error: 'Pattern matches an empty string (matches to any input)' occured
 
 DFA representation of /^(?:a|a*)/m
   Flags: multiline
@@ -171,9 +171,9 @@ DFA representation of /^(?:a|a*)/m
       1!: [a]
       2!: [a] 2
 
-Expected error: 'Pattern matches an empty string' occured
+Expected error: 'Pattern matches an empty string (matches to any input)' occured
 
-Expected error: 'Pattern is not supported by MPM' occured
+Expected error: 'Pattern is not supported by MPM library.' occured
 
 Expected error: 'Cannot add more regular expressions (max 32)' occured
 
