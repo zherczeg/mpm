@@ -61,6 +61,8 @@ typedef struct mpm_re_internal mpm_re;
 #define MPM_RE_IS_NOT_COMPILED          8
 /*! Number of allowed states is reached. */
 #define MPM_STATE_MACHINE_LIMIT         9
+/*! No such pattern (invalid index argument). */
+#define MPM_NO_SUCH_PATTERN             10
 
 char *mpm_error_to_string(int error_code);
 
@@ -160,6 +162,25 @@ int mpm_exec4(mpm_re **re, mpm_char8 *subject, mpm_size length, mpm_size offset,
  *                are described in mpm_exec. The first buffer belongs to re[0],
  *                the second to re[1], and so on.
  *  \return MPM_NO_ERROR on success.
+ */
+
+int mpm_distance(mpm_re *re1, int index1, mpm_re *re2, int index2);
+
+/*! \fn int mpm_distance(mpm_re *re1, int index1, mpm_re *re2, int index2)
+ *  \brief Calculates the Levenshtein distance between two patterns.
+ *         The re1 and re2 arguments can be the same.
+ *  \param re1 set of regular expressions created by mpm_create (the set must
+ *             be compiled by mpm_compile).
+ *  \param index1 the index of the pattern in re1. The first pattern added by
+ *                mpm_add has index 0, the second has index 1, and so on.
+ *  \param re2 set of regular expressions created by mpm_create (the set must
+ *             be compiled by mpm_compile).
+ *  \param index2 the index of the pattern in re1. The first pattern added by
+ *                mpm_add has index 0, the second has index 1, and so on.
+ *  \return if the return value is <= 0, it contains the distance. The
+ *          value of 0 means the two patterns have identical terminals
+ *          in the. E.g: (a|b?(cd|ef)) is the same as (a|bcd)ef. Otherwise
+ *          an error code is returned (e.g: MPM_NO_MEMORY).
  */
 
 #endif // mpm_h

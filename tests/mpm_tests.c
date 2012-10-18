@@ -309,14 +309,92 @@ static unsigned int hex_number_value(char ch)
     return ch <= '9' ? ch - '0' : ((ch | 0x20) + 10 - 'a');
 }
 
+static int process_regex(char *data)
+{
+    int flags = 0;
+    char *current;
+
+    current = data + strlen(data) - 1;
+    if (current[0] == '\n')
+        current--;
+    if (current[0] != '"') {
+        printf("Regex must end with quotation mark\n");
+        return -1;
+    }
+    current--;
+    while (current[0] != '/') {
+        if (current < data + 8) {
+            printf("Cannot find terminator slash\n");
+            return -1;
+        }
+        switch (current[0]) {
+        case 'A':
+            flags |= MPM_ADD_ANCHORED;
+            break;
+        case 'i':
+            flags |= MPM_ADD_CASELESS;
+            break;
+        case 'm':
+            flags |= MPM_ADD_MULTILINE;
+            break;
+        case 's':
+            flags |= MPM_ADD_DOTALL;
+            break;
+        case 'x':
+            flags |= MPM_ADD_EXTENDED;
+            break;
+        case 'B':
+        case 'C':
+        case 'D':
+        case 'G':
+        case 'H':
+        case 'I':
+        case 'P':
+        case 'R':
+        case 'U':
+            break;
+        default:
+            printf("Unknown flag: %c\n", current[0]);
+            return -1;
+        }
+        current--;
+    }
+
+    current[0] = '\0';
+    return flags;
+}
+
+static char* process_fixed_string(char *source)
+{
+    unsigned int value;
+    char *destination;
+
+    source += 8;
+    destination = source;
+    while (source[0]) {
+        value = (unsigned char)source[0];
+        if (value == '\\' && source[1] == 'x' && is_hex_number(source[2]) && is_hex_number(source[3])) {
+            value = hex_number_value(source[2]) << 4 | hex_number_value(source[3]);
+            source += 3;
+        }
+        source++;
+        *destination++ = value;
+    }
+
+    if (destination[-1] == '\n') {
+        destination--;
+        destination[0] = '\0';
+    }
+    return destination;
+}
+
 static void load_patterns(char* file_name,
     int load_regexes, int load_patterns, int max_loaded, int groups)
 {
     FILE *f = fopen(file_name, "rt");
     char data[MAX_LINE_LENGTH];
-    char *source, *destination;
+    char *ptr;
     int group_id, flags, line, count_supported, count_failed;
-    unsigned int value;
 
     if (!f) {
         printf("Cannot open file: %s\n", file_name);
@@ -352,59 +430,14 @@ static void load_patterns(char* file_name,
             if (!load_regexes)
                 continue;
 
-            source = data + strlen(data) - 1;
-            if (source[0] == '\n')
-                source--;
-            if (source[0] != '"') {
-                printf("Regex must end with quotation mark\n");
-                continue;
-            }
-            source--;
-            flags = 0;
-            while (source[0] != '/') {
-                if (source < data + 8) {
-                    printf("Cannot find terminator slash\n");
-                    break;
-                }
-                switch (source[0]) {
-                case 'A':
-                    flags |= MPM_ADD_ANCHORED;
-                    break;
-                case 'i':
-                    flags |= MPM_ADD_CASELESS;
-                    break;
-                case 'm':
-                    flags |= MPM_ADD_MULTILINE;
-                    break;
-                case 's':
-                    flags |= MPM_ADD_DOTALL;
-                    break;
-                case 'x':
-                    flags |= MPM_ADD_EXTENDED;
-                    break;
-                case 'B':
-                case 'C':
-                case 'D':
-                case 'G':
-                case 'H':
-                case 'I':
-                case 'P':
-                case 'R':
-                case 'U':
-                    break;
-                default:
-                    printf("Unknown flag: %c\n", source[0]);
-                    break;
-                }
-                source--;
-            }
-            if (source[0] != '/')
+            flags = process_regex(data);
+            /* An error happened. */
+            if (flags == -1)
                 continue;
 
-            source[0] = '\0';
-            source = data + ((data[6] == '!') ? 9 : 8);
-            if (mpm_add(loaded_re[group_id], (mpm_char8*)source, flags) != MPM_NO_ERROR) {
-                printf("Cannot add regex: line:%d %s\n", line, source);
+            ptr = data + ((data[6] == '!') ? 9 : 8);
+            if (mpm_add(loaded_re[group_id], (mpm_char8*)ptr, flags) != MPM_NO_ERROR) {
+                printf("Cannot add regex: line:%d %s\n", line, ptr);
                 count_failed++;
             } else {
                 count_supported++;
@@ -414,24 +447,8 @@ static void load_patterns(char* file_name,
             if (!load_patterns)
                 continue;
 
-            source = data + 8;
-            destination = source;
-            while (source[0]) {
-                value = (unsigned char)source[0];
-                if (value == '\\' && source[1] == 'x' && is_hex_number(source[2]) && is_hex_number(source[3])) {
-                    value = hex_number_value(source[2]) << 4 | hex_number_value(source[3]);
-                    source += 3;
-                }
-                source++;
-                *destination++ = value;
-            }
-
-            if (destination[-1] == '\n') {
-                destination--;
-                destination[0] = '\0';
-            }
-
-            if (mpm_add(loaded_re[group_id], (mpm_char8*)(data + 8), MPM_ADD_FIXED(destination - (data + 8))) != MPM_NO_ERROR) {
+            ptr = process_fixed_string(data);
+            if (mpm_add(loaded_re[group_id], (mpm_char8*)(data + 8), MPM_ADD_FIXED(ptr - (data + 8))) != MPM_NO_ERROR) {
                 printf("WARNING: Cannot add fixed string: line:%d %s\n", line, data + 8);
                 count_failed++;
             } else {
@@ -446,9 +463,8 @@ static void load_patterns(char* file_name,
     fclose(f);
 
     printf("Statistics: Supported: %d Unsupported: %d\n", count_supported, count_failed);
-    if (groups > 1)
-        for (group_id = 0; group_id < groups; group_id++)
-            test_mpm_compile(loaded_re[group_id], MPM_COMPILE_VERBOSE_STATS);
+    for (group_id = 0; group_id < groups; group_id++)
+         test_mpm_compile(loaded_re[group_id], MPM_COMPILE_VERBOSE_STATS);
 }
 
 static void load_input(char *file_name)
@@ -475,6 +491,88 @@ static void load_input(char *file_name)
     input_length = length;
 }
 
+static void search_patterns(char* file_name, char *pattern, int flags, int lower_bound)
+{
+    FILE *f = fopen(file_name, "rt");
+    char data[MAX_LINE_LENGTH];
+    int line, value;
+    mpm_re *re_base;
+    mpm_re *re_current;
+    char *ptr;
+
+    if (!f) {
+        printf("Cannot open file: %s\n", file_name);
+        return;
+    }
+
+    re_base = mpm_create();
+    if (!re_base) {
+        printf("WARNING: mpm_create is failed: %s\n", mpm_error_to_string(MPM_NO_MEMORY));
+        return;
+    }
+
+    value = mpm_add(re_base, (mpm_char8*)pattern, flags);
+    if (value != MPM_NO_ERROR) {
+        printf("WARNING: mpm_add is failed: %s\n", mpm_error_to_string(value));
+        return;
+    }
+
+    printf("Searching similar patterns for: '%s'\n", pattern);
+
+    line = 1;
+    while (1) {
+        if (!fgets(data, MAX_LINE_LENGTH, f))
+            break;
+
+        re_current = mpm_create();
+        if (!re_current) {
+            printf("WARNING: mpm_create is failed: %s\n", mpm_error_to_string(MPM_NO_MEMORY));
+            return;
+        }
+
+        if (memcmp(data, "regex \"/", 8) == 0 || memcmp(data, "regex !\"/", 9) == 0) {
+            flags = process_regex(data);
+            /* An error happened. */
+            if (flags == -1)
+                continue;
+
+            ptr = data + ((data[6] == '!') ? 9 : 8);
+            if (mpm_add(re_current, (mpm_char8*)ptr, flags) != MPM_NO_ERROR) {
+                /* printf("Cannot add regex: line:%d %s\n", line, ptr); */
+                ptr = NULL;
+            }
+        } else if (memcmp(data, "pattern ", 8) == 0) {
+            ptr = process_fixed_string(data);
+            if (mpm_add(re_current, (mpm_char8*)(data + 8), MPM_ADD_FIXED(ptr - (data + 8))) != MPM_NO_ERROR) {
+                /* printf("WARNING: Cannot add fixed string: line:%d %s\n", line, data + 8); */
+                ptr = NULL;
+            } else
+                ptr = data + 8;
+        } else {
+            ptr = NULL;
+            printf("WARNING: Unknown type: line:%d %s\n", line, data);
+        }
+
+        if (ptr) {
+            value = mpm_distance(re_base, 0, re_current, 0);
+            if (value <= 0) {
+                if (value >= lower_bound)
+                    printf("  distance of '%s' is %d\n", ptr, value);
+            } else {
+                printf("<%s> %d\n", ptr, value);
+                printf("WARNING: mpm_distance is failed: %s\n", mpm_error_to_string(value));
+            }
+        }
+
+        mpm_free(re_current);
+        line++;
+    }
+
+    fclose(f);
+    mpm_free(re_base);
+}
+
+
 static void new_feature(void)
 {
 #if 0
@@ -488,6 +586,7 @@ static void new_feature(void)
     test_mpm_add(re, "aa.b*", MPM_ADD_VERBOSE);
     test_mpm_add(re, "ma?", MPM_ADD_VERBOSE);
     test_mpm_add(re, "aa", MPM_ADD_VERBOSE | MPM_ADD_FIXED(2));
+    printf("Distance: %d\n", mpm_distance(re, 0, re, 1));
     test_mpm_compile(re, MPM_COMPILE_VERBOSE | MPM_COMPILE_VERBOSE_STATS);
     test_mpm_exec(re, "mmaa bb", 0);
     test_mpm_exec(re, "aa", 0);
@@ -495,7 +594,7 @@ static void new_feature(void)
 
     mpm_free(re);
 
-#else
+#elif 0
 
     int i;
     clock_t time;
@@ -503,7 +602,7 @@ static void new_feature(void)
 
     load_patterns("../../patterns3.txt",
         /* load_regexes */ 1,
-        /* load_patterns */ 0,
+        /* load_patterns */ 1,
         /* max_loaded */ 128,
         /* groups */ 4);
 
@@ -515,11 +614,17 @@ static void new_feature(void)
     time = clock() - time;
     printf("Sequential run: %d ms (average)\n", (int)(time * 1000 / (CLOCKS_PER_SEC * 32)));
 
-    time = clock();
-    for (i = 0; i < 32; ++i)
-        mpm_exec4(loaded_re, (mpm_char8*)input, input_length, 0, results);
-    time = clock() - time;
-    printf("Parallel run (4): %d ms (average)\n", (int)(time * 1000 / (CLOCKS_PER_SEC * 4 * 32)));
+    if (loaded_re[3]) {
+        time = clock();
+        for (i = 0; i < 32; ++i)
+            mpm_exec4(loaded_re, (mpm_char8*)input, input_length, 0, results);
+        time = clock() - time;
+        printf("Parallel run (4): %d ms (average)\n", (int)(time * 1000 / (CLOCKS_PER_SEC * 32)));
+    }
+
+#else
+
+    search_patterns("../../patterns.txt", "sitepath=\\s*(ftps?|https?|php)\\:\\/", MPM_ADD_CASELESS, -10);
 
 #endif
 }

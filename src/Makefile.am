@@ -9,6 +9,7 @@ libmpm_la_SOURCES = \
   mpm_internal.h \
   mpm_add.c \
   mpm_compile.c \
+  mpm_distance.c \
   mpm_exec.c \
   mpm_utils.c \
   mpm_pcre/mpm_pcre.h \

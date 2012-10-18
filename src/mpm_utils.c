@@ -75,7 +75,7 @@ char *mpm_error_to_string(int error_code)
     case MPM_INVALID_PATTERN:
         return "Pattern cannot be compiled by PCRE";
     case MPM_UNSUPPORTED_PATTERN:
-        return "Pattern is not supported by MPM library.";
+        return "Pattern is not supported by MPM library";
     case MPM_EMPTY_PATTERN:
         return "Pattern matches an empty string (matches to any input)";
     case MPM_PATTERN_LIMIT:
@@ -86,6 +86,8 @@ char *mpm_error_to_string(int error_code)
         return "Pattern must be compiled first by mpm_compile";
     case MPM_STATE_MACHINE_LIMIT:
         return "Number of allowed states is reached (max " TOSTRING(STATE_LIMIT) " states)";
+    case MPM_NO_SUCH_PATTERN:
+        return "No such pattern (invalid index argument)";
     default:
         return "Unknown error code";
     }
