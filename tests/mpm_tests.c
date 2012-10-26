@@ -295,7 +295,13 @@ static test_case tests[MAX_TESTS] = {
 #define MAX_LINE_LENGTH 4096
 #define MAX_RE_GROUPS 16
 
+/* load_pattern */
 static mpm_re *loaded_re[MAX_RE_GROUPS];
+
+/* load_pattern_list */
+static mpm_cluster_item *loaded_items;
+static int loaded_items_size;
+
 static char *input;
 static unsigned long input_length;
 
@@ -467,6 +473,131 @@ static void load_patterns(char* file_name,
          test_mpm_compile(loaded_re[group_id], MPM_COMPILE_VERBOSE_STATS);
 }
 
+typedef struct compiled_pattern {
+    struct compiled_pattern *next;
+    mpm_re *re;
+    char *pattern;
+} compiled_pattern;
+
+static void load_pattern_list(char* file_name, int full_string)
+{
+    FILE *f = fopen(file_name, "rt");
+    char data[MAX_LINE_LENGTH];
+    int line, count, flags, len;
+    compiled_pattern *first_pattern, *last_pattern;
+    compiled_pattern *current_pattern;
+    mpm_re *current_re;
+    mpm_cluster_item *loaded_items_ptr;
+    char *ptr;
+
+    if (!f) {
+        printf("Cannot open file: %s\n", file_name);
+        return;
+    }
+
+    line = 1;
+    count = 0;
+    first_pattern = NULL;
+    last_pattern = NULL;
+    while (1) {
+        if (!fgets(data, MAX_LINE_LENGTH, f))
+            break;
+
+        current_re = mpm_create();
+        if (!current_re) {
+            printf("WARNING: mpm_create is failed: %s\n", mpm_error_to_string(MPM_NO_MEMORY));
+            return;
+        }
+
+        if (memcmp(data, "regex \"/", 8) == 0 || memcmp(data, "regex !\"/", 9) == 0) {
+            flags = process_regex(data);
+            /* An error happened. */
+            if (flags == -1)
+                continue;
+
+            ptr = data + ((data[6] == '!') ? 9 : 8);
+            if (mpm_add(current_re, (mpm_char8*)ptr, flags) != MPM_NO_ERROR) {
+                /* printf("Cannot add regex: line:%d %s\n", line, ptr); */
+                ptr = NULL;
+            }
+            if (full_string) {
+                len = strlen(data);
+                data[len] = '/';
+                len += strlen(data + len);
+                if (data[len - 1] == '\n')
+                    data[len - 1] = '\0';
+            }
+        } else if (memcmp(data, "pattern ", 8) == 0) {
+            ptr = process_fixed_string(data);
+            if (mpm_add(current_re, (mpm_char8*)(data + 8), MPM_ADD_FIXED(ptr - (data + 8))) != MPM_NO_ERROR) {
+                /* printf("WARNING: Cannot add fixed string: line:%d %s\n", line, data + 8); */
+                ptr = NULL;
+            } else
+                ptr = data + 8;
+        } else {
+            ptr = NULL;
+            printf("WARNING: Unknown type: line:%d %s\n", line, data);
+        }
+
+        if (ptr) {
+            if (full_string)
+                ptr = data;
+            current_pattern = (compiled_pattern *)malloc(sizeof(compiled_pattern));
+            if (!current_pattern) {
+                printf("WARNING: out of memory\n");
+                return;
+            }
+
+            len = strlen(ptr);
+            current_pattern->pattern = (char *)malloc(len + 1);
+            if (!current_pattern->pattern) {
+                printf("WARNING: out of memory\n");
+                return;
+            }
+            memcpy(current_pattern->pattern, ptr, len + 1);
+
+            current_pattern->next = NULL;
+            current_pattern->re = current_re;
+            if (!first_pattern)
+                first_pattern = current_pattern;
+            else
+                last_pattern->next = current_pattern;
+            last_pattern = current_pattern;
+
+            count++;
+        } else
+            mpm_free(current_re);
+        line++;
+    }
+
+    fclose(f);
+
+    if (!count)
+        return;
+
+    loaded_items = (mpm_cluster_item *)malloc(count * sizeof(mpm_cluster_item));
+    if (!loaded_items) {
+        printf("WARNING: out of memory\n");
+        return;
+    }
+
+    loaded_items_size = count;
+
+    /* Copy the data. */
+    loaded_items_ptr = loaded_items;
+    while (first_pattern) {
+        loaded_items_ptr->re = first_pattern->re;
+        loaded_items_ptr->data = first_pattern->pattern;
+        loaded_items_ptr++;
+
+        last_pattern = first_pattern->next;
+        free(first_pattern);
+        first_pattern = last_pattern;
+    }
+
+    printf("%d patterns are loaded\n", count);
+}
+
 static void load_input(char *file_name)
 {
     FILE *f = fopen(file_name, "rt");
@@ -490,88 +621,6 @@ static void load_input(char *file_name)
     printf("File: %s (%d) loaded\n", file_name, (int)length);
     input_length = length;
 }
-
-static void search_patterns(char* file_name, char *pattern, int flags, int lower_bound)
-{
-    FILE *f = fopen(file_name, "rt");
-    char data[MAX_LINE_LENGTH];
-    int line, value;
-    mpm_re *re_base;
-    mpm_re *re_current;
-    char *ptr;
-
-    if (!f) {
-        printf("Cannot open file: %s\n", file_name);
-        return;
-    }
-
-    re_base = mpm_create();
-    if (!re_base) {
-        printf("WARNING: mpm_create is failed: %s\n", mpm_error_to_string(MPM_NO_MEMORY));
-        return;
-    }
-
-    value = mpm_add(re_base, (mpm_char8*)pattern, flags);
-    if (value != MPM_NO_ERROR) {
-        printf("WARNING: mpm_add is failed: %s\n", mpm_error_to_string(value));
-        return;
-    }
-
-    printf("Searching similar patterns for: '%s'\n", pattern);
-
-    line = 1;
-    while (1) {
-        if (!fgets(data, MAX_LINE_LENGTH, f))
-            break;
-
-        re_current = mpm_create();
-        if (!re_current) {
-            printf("WARNING: mpm_create is failed: %s\n", mpm_error_to_string(MPM_NO_MEMORY));
-            return;
-        }
-
-        if (memcmp(data, "regex \"/", 8) == 0 || memcmp(data, "regex !\"/", 9) == 0) {
-            flags = process_regex(data);
-            /* An error happened. */
-            if (flags == -1)
-                continue;
-
-            ptr = data + ((data[6] == '!') ? 9 : 8);
-            if (mpm_add(re_current, (mpm_char8*)ptr, flags) != MPM_NO_ERROR) {
-                /* printf("Cannot add regex: line:%d %s\n", line, ptr); */
-                ptr = NULL;
-            }
-        } else if (memcmp(data, "pattern ", 8) == 0) {
-            ptr = process_fixed_string(data);
-            if (mpm_add(re_current, (mpm_char8*)(data + 8), MPM_ADD_FIXED(ptr - (data + 8))) != MPM_NO_ERROR) {
-                /* printf("WARNING: Cannot add fixed string: line:%d %s\n", line, data + 8); */
-                ptr = NULL;
-            } else
-                ptr = data + 8;
-        } else {
-            ptr = NULL;
-            printf("WARNING: Unknown type: line:%d %s\n", line, data);
-        }
-
-        if (ptr) {
-            value = mpm_distance(re_base, 0, re_current, 0);
-            if (value <= 0) {
-                if (value >= lower_bound)
-                    printf("  distance of '%s' is %d\n", ptr, value);
-            } else {
-                printf("<%s> %d\n", ptr, value);
-                printf("WARNING: mpm_distance is failed: %s\n", mpm_error_to_string(value));
-            }
-        }
-
-        mpm_free(re_current);
-        line++;
-    }
-
-    fclose(f);
-    mpm_free(re_base);
-}
-
 
 static void new_feature(void)
 {
@@ -624,7 +673,32 @@ static void new_feature(void)
 
 #else
 
-    search_patterns("../../patterns.txt", "sitepath=\\s*(ftps?|https?|php)\\:\\/", MPM_ADD_CASELESS, -10);
+    mpm_re *re;
+    int i;
+
+    load_pattern_list("../../patterns3.txt", 1);
+    if (!loaded_items)
+        return;
+
+    mpm_clustering(loaded_items, loaded_items_size, MPM_CLUSTERING_VERBOSE);
+
+    printf("Group 0:\n");
+    re = loaded_items[0].re;
+    for (i = 1; i < loaded_items_size; i++) {
+        if (loaded_items[i].group_id != loaded_items[i - 1].group_id) {
+            if (mpm_compile(re, MPM_COMPILE_VERBOSE_STATS) != MPM_NO_ERROR)
+                printf("WARNING: mpm_compile failed\n");
+            printf("\nGroup: %d\n", loaded_items[i].group_id);
+            re = loaded_items[i].re;
+        } else {
+            if (mpm_combine(re, loaded_items[i].re) != MPM_NO_ERROR)
+                printf("WARNING: mpm_combine failed\n");
+        }
+
+        printf("  %s\n", (char *)loaded_items[i].data);
+    }
+
+    mpm_compile(re, MPM_COMPILE_VERBOSE_STATS);
 
 #endif
 }

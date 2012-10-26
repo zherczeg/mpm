@@ -34641,5 +34641,5 @@ Processing    1: Active terms: <0>, Final states: <>
   For [\x00-;=-\xff] next state: 1
   For [<] next state: 739
 
-Hashmap statistics: items: 5493 buckets: 8192 max bucket: 5 
-Compression save: 0.85% = 1 - (838424 / 5624836)
+Hashmap statistics: states: 5493, buckets: 8192, max bucket length: 5
+Statistics: patterns: 2, terms: 273, Compression save: 0.85% (838424 bytes instead of 5624836 bytes)

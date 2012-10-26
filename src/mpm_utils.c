@@ -78,6 +78,8 @@ char *mpm_error_to_string(int error_code)
         return "Pattern is not supported by MPM library";
     case MPM_EMPTY_PATTERN:
         return "Pattern matches an empty string (matches to any input)";
+    case MPM_INVALID_ARGS:
+        return "Invalid or unsupported arguments";
     case MPM_PATTERN_LIMIT:
         return "Cannot add more regular expressions (max " TOSTRING(PATTERN_LIMIT) ")";
     case MPM_RE_ALREADY_COMPILED:
@@ -91,6 +93,52 @@ char *mpm_error_to_string(int error_code)
     default:
         return "Unknown error code";
     }
+}
+
+int mpm_combine(mpm_re *destination_re, mpm_re *source_re)
+{
+    mpm_re_pattern *pattern;
+    int i;
+
+    if (!(destination_re->flags & RE_MODE_COMPILE) || !(source_re->flags & RE_MODE_COMPILE))
+        return MPM_RE_ALREADY_COMPILED;
+
+    if (destination_re->compile.next_id + source_re->compile.next_id >= PATTERN_LIMIT)
+        return MPM_PATTERN_LIMIT;
+
+    /* Sanity check. */
+    pattern = destination_re->compile.patterns;
+    i = 0;
+    while (pattern) {
+        pattern = pattern->next;
+        i++;
+    }
+    if (i != destination_re->compile.next_id)
+        return MPM_INTERNAL_ERROR;
+
+    pattern = source_re->compile.patterns;
+    i = 0;
+    while (pattern) {
+        pattern = pattern->next;
+        i++;
+    }
+    if (i != source_re->compile.next_id)
+        return MPM_INTERNAL_ERROR;
+
+    destination_re->compile.next_id += source_re->compile.next_id;
+    destination_re->compile.next_term_index += source_re->compile.next_term_index;
+
+    if (!destination_re->compile.patterns)
+        destination_re->compile.patterns = source_re->compile.patterns;
+    else {
+        pattern = destination_re->compile.patterns;
+        while (pattern->next)
+            pattern = pattern->next;
+        pattern->next = source_re->compile.patterns;
+    }
+
+    free(source_re);
+    return MPM_NO_ERROR;
 }
 
 /* ----------------------------------------------------------------------- */

@@ -1035,7 +1035,7 @@ int mpm_add(mpm_re *re, mpm_char8 *pattern, mpm_uint32 flags)
                 dfa_offset++;
             } else {
                 dfa_offset = re_pattern->word_code + re_pattern->word_code[term_index - 1];
-                printf("  %5d%c: [", re->compile.next_term_index + term_index - 1, dfa_offset[8] != DFA_NO_DATA ? '!' : ' ');
+                printf("  %5d%c: [", re->compile.next_term_index + term_index - 1, dfa_offset[CHAR_SET_SIZE] != DFA_NO_DATA ? '!' : ' ');
                 mpm_print_char_range((uint8_t *)dfa_offset);
                 putc(']', stdout);
                 dfa_offset += CHAR_SET_SIZE + 1;

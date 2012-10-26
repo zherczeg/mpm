@@ -333,7 +333,7 @@ static void hashmap_stats(mpm_hashmap *map)
         if (count > max)
             max = count;
     }
-    printf("\nHashmap statistics: items: %d buckets: %d max bucket: %d \n", map->item_count, mask + 1, max);
+    printf("\nHashmap statistics: states: %d, buckets: %d, max bucket length: %d\n", map->item_count, mask + 1, max);
 }
 #endif
 
@@ -669,10 +669,12 @@ int mpm_compile(mpm_re *re, mpm_uint32 flags)
     newline_offset = MAP(id_offset_map)[newline_offset].offset;
 
 #if defined MPM_VERBOSE && MPM_VERBOSE
-    i = sizeof(uint32_t) + (MAP(item_count) * sizeof(uint32_t) * 256);
-    if (flags & MPM_COMPILE_VERBOSE_STATS)
-        printf("Compression save: %.2lf%% = 1 - (%d / %d)\n",
+    if (flags & MPM_COMPILE_VERBOSE_STATS) {
+        i = sizeof(uint32_t) + (MAP(item_count) * sizeof(uint32_t) * 256);
+        printf("Statistics: patterns: %d, terms: %d, Compression save: %.2lf%% (%d bytes instead of %d bytes)\n",
+            (int)re->compile.next_id, (int)re->compile.next_term_index,
             1 - ((double)offset / (double)i), offset, (int)i);
+    }
 #endif
 
     compiled_pattern = (uint8_t *)malloc(offset);

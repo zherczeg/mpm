@@ -608,7 +608,7 @@ DFA representation of //
 
 Expected error: 'Pattern matches an empty string (matches to any input)' occured
 
-Expected error: 'Pattern is not supported by MPM library.' occured
+Expected error: 'Pattern is not supported by MPM library' occured
 
 Expected error: 'Pattern cannot be compiled by PCRE' occured
 

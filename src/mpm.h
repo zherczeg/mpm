@@ -53,16 +53,18 @@ typedef struct mpm_re_internal mpm_re;
 #define MPM_UNSUPPORTED_PATTERN         4
 /*! Pattern matches an empty string (matches to any input). */
 #define MPM_EMPTY_PATTERN               5
+/*! Invalid or unsupported arguments. */
+#define MPM_INVALID_ARGS                6
 /*! Cannot add more regular expressions (max 32). */
-#define MPM_PATTERN_LIMIT               6
+#define MPM_PATTERN_LIMIT               7
 /*! Pattern has been already compiled by mpm_compile. */
-#define MPM_RE_ALREADY_COMPILED         7
+#define MPM_RE_ALREADY_COMPILED         8
 /*! Pattern must be compiled first by mpm_compile. */
-#define MPM_RE_IS_NOT_COMPILED          8
+#define MPM_RE_IS_NOT_COMPILED          9
 /*! Number of allowed states is reached. */
-#define MPM_STATE_MACHINE_LIMIT         9
+#define MPM_STATE_MACHINE_LIMIT         10
 /*! No such pattern (invalid index argument). */
-#define MPM_NO_SUCH_PATTERN             10
+#define MPM_NO_SUCH_PATTERN             11
 
 char *mpm_error_to_string(int error_code);
 
@@ -129,7 +131,7 @@ int mpm_add(mpm_re *re, mpm_char8 *pattern, mpm_uint32 flags);
 int mpm_compile(mpm_re *re, mpm_uint32 flags);
 
 /*! \fn int mpm_compile(mpm_re *re, mpm_uint32 flags)
- *  \brief Combines the pattern set into a single DFA representation.
+ *  \brief Compiles the pattern set into a single DFA representation.
  *  \param re set of regular expressions created by mpm_create.
  *  \param flags flags started by MPM_COMPILE_ prefix.
  *  \return MPM_NO_ERROR on success.
@@ -164,17 +166,31 @@ int mpm_exec4(mpm_re **re, mpm_char8 *subject, mpm_size length, mpm_size offset,
  *  \return MPM_NO_ERROR on success.
  */
 
-int mpm_distance(mpm_re *re1, int index1, mpm_re *re2, int index2);
+int mpm_combine(mpm_re *destination_re, mpm_re *source_re);
+
+/*! \fn int mpm_combine(mpm_re *destination_re, mpm_re *source_re)
+ *  \brief The patterns stored by source_re are added at the end of
+ *         destination_re. If successful, source_re is freed. Otherwise
+ *         both set of regular expressions are left unchanged.
+ *  \param destination_re set of regular expressions created by mpm_create
+ *                        (the set must not be compiled by mpm_compile).
+ *  \param source_re set of regular expressions created by mpm_create
+ *                   (the set must not be compiled by mpm_compile).
+ *
+ *  \return MPM_NO_ERROR on success.
+ */
+
+int mpm_distance(mpm_re *re1, mpm_size index1, mpm_re *re2, mpm_size index2);
 
 /*! \fn int mpm_distance(mpm_re *re1, int index1, mpm_re *re2, int index2)
  *  \brief Calculates the Levenshtein distance between two patterns.
  *         The re1 and re2 arguments can be the same.
- *  \param re1 set of regular expressions created by mpm_create (the set must
- *             be compiled by mpm_compile).
+ *  \param re1 set of regular expressions created by mpm_create
+ *             (the set must not be compiled by mpm_compile).
  *  \param index1 the index of the pattern in re1. The first pattern added by
  *                mpm_add has index 0, the second has index 1, and so on.
- *  \param re2 set of regular expressions created by mpm_create (the set must
- *             be compiled by mpm_compile).
+ *  \param re2 set of regular expressions created by mpm_create
+ *             (the set must not be compiled by mpm_compile).
  *  \param index2 the index of the pattern in re1. The first pattern added by
  *                mpm_add has index 0, the second has index 1, and so on.
  *  \return if the return value is <= 0, it contains the distance. The
@@ -182,5 +198,17 @@ int mpm_distance(mpm_re *re1, int index1, mpm_re *re2, int index2);
  *          in the. E.g: (a|b?(cd|ef)) is the same as (a|bcd)ef. Otherwise
  *          an error code is returned (e.g: MPM_NO_MEMORY).
  */
+
+typedef struct mpm_cluster_item {
+    mpm_uint32 group_id;
+    mpm_re *re;
+    void *data;
+} mpm_cluster_item;
+
+  /*  This flag is ignored if MPM_VERBOSE is undefined. */
+  /*! Verbose the operations of mpm_clustering. */
+#define MPM_CLUSTERING_VERBOSE          0x001
+
+int mpm_clustering(mpm_cluster_item *items, mpm_size no_items, mpm_uint32 flags);
 
 #endif // mpm_h
