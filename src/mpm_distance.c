@@ -107,12 +107,12 @@ int mpm_distance(mpm_re *re1, mpm_size index1, mpm_re *re2, mpm_size index2)
 }
 
 /* ----------------------------------------------------------------------- */
-/*                        Clustering regular expressions.                  */
+/*                          Rating regular expressions.                    */
 /* ----------------------------------------------------------------------- */
 
 #define ONES_MAX_TRESHOLD 8
 
-static int mpm_rate(mpm_re *re, mpm_size index)
+int mpm_rating(mpm_re *re, mpm_size index)
 {
     mpm_re_pattern *pattern;
     uint32_t *word_code, *bit_set, *bit_set_end;
@@ -176,6 +176,10 @@ static int mpm_rate(mpm_re *re, mpm_size index)
     return -rate;
 }
 
+/* ----------------------------------------------------------------------- */
+/*                        Clustering regular expressions.                  */
+/* ----------------------------------------------------------------------- */
+
 #undef ONES_MAX_TRESHOLD
 
 #define DISTANCE(x, y) \
@@ -212,7 +216,7 @@ static void split_group(int *distance_matrix, mpm_size distance_matrix_size,
             }
         }
 
-    if (no_items <= 32 && max_distance < 32)
+    if (no_items <= 32 && max_distance < 60)
         return;
 
     no_items--;
@@ -292,12 +296,14 @@ int mpm_clustering(mpm_cluster_item *items, mpm_size no_items, mpm_uint32 flags)
 #endif
 
     for (x = 0; x < no_items; x++) {
-        rate = mpm_rate(items[x].re, 0);
+        rate = mpm_rating(items[x].re, 0);
         if (rate > 0) {
             free(distance_matrix);
             free(rate_vector);
             return rate;
         }
+        if (items[x].re->compile.next_id != 1)
+            return MPM_INVALID_ARGS;
         rate_vector[x] = -rate;
     }
 

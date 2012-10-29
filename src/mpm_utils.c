@@ -103,7 +103,7 @@ int mpm_combine(mpm_re *destination_re, mpm_re *source_re)
     if (!(destination_re->flags & RE_MODE_COMPILE) || !(source_re->flags & RE_MODE_COMPILE))
         return MPM_RE_ALREADY_COMPILED;
 
-    if (destination_re->compile.next_id + source_re->compile.next_id >= PATTERN_LIMIT)
+    if (destination_re->compile.next_id + source_re->compile.next_id > PATTERN_LIMIT)
         return MPM_PATTERN_LIMIT;
 
     /* Sanity check. */

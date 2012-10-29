@@ -479,11 +479,11 @@ typedef struct compiled_pattern {
     char *pattern;
 } compiled_pattern;
 
-static void load_pattern_list(char* file_name, int full_string)
+static void load_pattern_list(char* file_name, int min_rating)
 {
     FILE *f = fopen(file_name, "rt");
     char data[MAX_LINE_LENGTH];
-    int line, count, flags, len;
+    int line, count, skipped_count, unsupported_count, flags, len;
     compiled_pattern *first_pattern, *last_pattern;
     compiled_pattern *current_pattern;
     mpm_re *current_re;
@@ -497,6 +497,8 @@ static void load_pattern_list(char* file_name, int full_string)
 
     line = 1;
     count = 0;
+    skipped_count = 0;
+    unsupported_count = 0;
     first_pattern = NULL;
     last_pattern = NULL;
     while (1) {
@@ -520,13 +522,12 @@ static void load_pattern_list(char* file_name, int full_string)
                 /* printf("Cannot add regex: line:%d %s\n", line, ptr); */
                 ptr = NULL;
             }
-            if (full_string) {
-                len = strlen(data);
-                data[len] = '/';
-                len += strlen(data + len);
-                if (data[len - 1] == '\n')
-                    data[len - 1] = '\0';
-            }
+
+            len = strlen(data);
+            data[len] = '/';
+            len += strlen(data + len);
+            if (data[len - 1] == '\n')
+                data[len - 1] = '\0';
         } else if (memcmp(data, "pattern ", 8) == 0) {
             ptr = process_fixed_string(data);
             if (mpm_add(current_re, (mpm_char8*)(data + 8), MPM_ADD_FIXED(ptr - (data + 8))) != MPM_NO_ERROR) {
@@ -540,34 +541,45 @@ static void load_pattern_list(char* file_name, int full_string)
         }
 
         if (ptr) {
-            if (full_string)
-                ptr = data;
-            current_pattern = (compiled_pattern *)malloc(sizeof(compiled_pattern));
-            if (!current_pattern) {
-                printf("WARNING: out of memory\n");
-                return;
+            len = mpm_rating(current_re, 0);
+            if (len <= min_rating) {
+                printf("NOTE: Too low rate(%d < %d): %s\n", len, min_rating, data);
+                skipped_count++;
+                ptr = NULL;
             }
-
-            len = strlen(ptr);
-            current_pattern->pattern = (char *)malloc(len + 1);
-            if (!current_pattern->pattern) {
-                printf("WARNING: out of memory\n");
-                return;
-            }
-            memcpy(current_pattern->pattern, ptr, len + 1);
-
-            current_pattern->next = NULL;
-            current_pattern->re = current_re;
-            if (!first_pattern)
-                first_pattern = current_pattern;
-            else
-                last_pattern->next = current_pattern;
-            last_pattern = current_pattern;
-
-            count++;
         } else
-            mpm_free(current_re);
+            unsupported_count++;
+
         line++;
+        if (!ptr) {
+            mpm_free(current_re);
+            continue;
+        }
+
+        ptr = data;
+        current_pattern = (compiled_pattern *)malloc(sizeof(compiled_pattern));
+        if (!current_pattern) {
+            printf("WARNING: out of memory\n");
+            return;
+        }
+
+        len = strlen(ptr);
+        current_pattern->pattern = (char *)malloc(len + 1);
+        if (!current_pattern->pattern) {
+            printf("WARNING: out of memory\n");
+            return;
+        }
+        memcpy(current_pattern->pattern, ptr, len + 1);
+
+        current_pattern->next = NULL;
+        current_pattern->re = current_re;
+        if (!first_pattern)
+            first_pattern = current_pattern;
+        else
+            last_pattern->next = current_pattern;
+        last_pattern = current_pattern;
+
+        count++;
     }
 
     fclose(f);
@@ -595,7 +607,9 @@ static void load_pattern_list(char* file_name, int full_string)
         first_pattern = last_pattern;
     }
 
-    printf("%d patterns are loaded\n", count);
+    printf("%d patterns are processed\n  %d successfully loaded\n"
+           "  %d ignored because of low rating\n  %d ignored because they are unsupported",
+           count + skipped_count + unsupported_count, count, skipped_count, unsupported_count);
 }
 
 static void load_input(char *file_name)
@@ -676,13 +690,13 @@ static void new_feature(void)
     mpm_re *re;
     int i;
 
-    load_pattern_list("../../patterns3.txt", 1);
+    load_pattern_list("../../patterns3.txt", -8);
     if (!loaded_items)
         return;
 
     mpm_clustering(loaded_items, loaded_items_size, MPM_CLUSTERING_VERBOSE);
 
-    printf("Group 0:\n");
+    printf("Group 0:\n  %s\n", (char *)loaded_items[i].data);
     re = loaded_items[0].re;
     for (i = 1; i < loaded_items_size; i++) {
         if (loaded_items[i].group_id != loaded_items[i - 1].group_id) {

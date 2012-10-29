@@ -199,10 +199,28 @@ int mpm_distance(mpm_re *re1, mpm_size index1, mpm_re *re2, mpm_size index2);
  *          an error code is returned (e.g: MPM_NO_MEMORY).
  */
 
+int mpm_rating(mpm_re *re, mpm_size index);
+
+/*! \fn int mpm_rating(mpm_re *re, mpm_size index)
+ *  \brief Rating a pattern. The return value tells whether the pattern
+ *         can be efficiently handled by the mpm matcher.
+ *  \param re set of regular expressions created by mpm_create
+ *            (the set must not be compiled by mpm_compile).
+ *  \param index the index of the pattern in re1. The first pattern added by
+ *               mpm_add has index 0, the second has index 1, and so on.
+ *  \return if the return value is between -16 and -1, it contains the rating.
+ *          Closer to 0 is better, so a pattern with the rate of -1 is likely
+ *          efficiently handled by the mpm library. On the contrary, a pattern
+ *          with -16 rate should be matched by another engine. Otherwise
+ *          an error code is returned (e.g: MPM_NO_MEMORY).
+ */
+
+/*! Structure used only by mpm_clustering. */
 typedef struct mpm_cluster_item {
-    mpm_uint32 group_id;
-    mpm_re *re;
-    void *data;
+    mpm_uint32 group_id;   /*!< The group id. Starting from 0, and increased by 1 for each
+                                new group. This field is an output only argument. */
+    mpm_re *re;            /*!< This parameter should contain a single pattern. */
+    void *data;            /*!< User pointer, which keeps its value after the reordering. */
 } mpm_cluster_item;
 
   /*  This flag is ignored if MPM_VERBOSE is undefined. */
@@ -210,5 +228,14 @@ typedef struct mpm_cluster_item {
 #define MPM_CLUSTERING_VERBOSE          0x001
 
 int mpm_clustering(mpm_cluster_item *items, mpm_size no_items, mpm_uint32 flags);
+
+/*! \fn int mpm_clustering(mpm_cluster_item *items, mpm_size no_items, mpm_uint32 flags)
+ *  \brief Groups similar patterns into one set.
+ *  \param items list of patterns. Items are fully reordered if the function is successful,
+ *               so this is an output argument as well.
+ *  \param no_items length of the items argument.
+ *  \param flags flags started by MPM_CLUSTERING_ prefix.
+ *  \return MPM_NO_ERROR on success.
+ */
 
 #endif // mpm_h
