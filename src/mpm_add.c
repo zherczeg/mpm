@@ -1063,6 +1063,11 @@ int mpm_add(mpm_re *re, mpm_char8 *pattern, mpm_uint32 flags)
         }
     }
 
+    if ((flags & MPM_ADD_TEST_RATING) && mpm_private_rating(re_pattern) >= 8) {
+        free(re_pattern);
+        return MPM_TOO_LOW_RATING;
+    }
+
     /* Insert the pattern. */
     re_pattern->next = re->compile.patterns;
     re->compile.patterns = re_pattern;

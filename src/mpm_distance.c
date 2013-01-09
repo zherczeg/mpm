@@ -112,23 +112,11 @@ int mpm_distance(mpm_re *re1, mpm_size index1, mpm_re *re2, mpm_size index2)
 
 #define ONES_MAX_TRESHOLD 8
 
-int mpm_rating(mpm_re *re, mpm_size index)
+int mpm_private_rating(mpm_re_pattern *pattern)
 {
-    mpm_re_pattern *pattern;
     uint32_t *word_code, *bit_set, *bit_set_end;
     uint32_t i, size, ones, value;
     int rate, char_types[3];
-
-    if (!(re->flags & RE_MODE_COMPILE))
-        return MPM_RE_ALREADY_COMPILED;
-
-    pattern = re->compile.patterns;
-    while (pattern && index > 0) {
-        pattern = pattern->next;
-        index--;
-    }
-    if (!pattern)
-        return MPM_NO_SUCH_PATTERN;
 
     word_code = pattern->word_code;
     size = pattern->term_range_size;
@@ -173,7 +161,24 @@ int mpm_rating(mpm_re *re, mpm_size index)
     /* Clamp result. */
     if (rate <= 0)
         rate = 1;
-    return -rate;
+    return rate;
+}
+
+int mpm_rating(mpm_re *re, mpm_size index)
+{
+    mpm_re_pattern *pattern;
+    if (!(re->flags & RE_MODE_COMPILE))
+        return MPM_RE_ALREADY_COMPILED;
+
+    pattern = re->compile.patterns;
+    while (pattern && index > 0) {
+        pattern = pattern->next;
+        index--;
+    }
+    if (!pattern)
+        return MPM_NO_SUCH_PATTERN;
+
+    return -mpm_private_rating(pattern);
 }
 
 /* ----------------------------------------------------------------------- */
@@ -272,7 +277,7 @@ int mpm_clustering(mpm_cluster_item *items, mpm_size no_items, mpm_uint32 flags)
     mpm_uint32 next_index, prev_group;
     int *distance_matrix;
     int *rate_vector;
-    int distance, rate;
+    int distance;
 #if defined MPM_VERBOSE && MPM_VERBOSE
     mpm_size count = 0, max = 0;
 #endif
@@ -296,15 +301,13 @@ int mpm_clustering(mpm_cluster_item *items, mpm_size no_items, mpm_uint32 flags)
 #endif
 
     for (x = 0; x < no_items; x++) {
-        rate = mpm_rating(items[x].re, 0);
-        if (rate > 0) {
+        y = !(items[x].re->flags & RE_MODE_COMPILE);
+        if (y || items[x].re->compile.next_id != 1) {
             free(distance_matrix);
             free(rate_vector);
-            return rate;
+            return y ? MPM_RE_ALREADY_COMPILED : MPM_INVALID_ARGS;
         }
-        if (items[x].re->compile.next_id != 1)
-            return MPM_INVALID_ARGS;
-        rate_vector[x] = -rate;
+        rate_vector[x] = mpm_private_rating(items[x].re->compile.patterns);
     }
 
 #if defined MPM_VERBOSE && MPM_VERBOSE

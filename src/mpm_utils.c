@@ -41,7 +41,7 @@ mpm_re * mpm_create(void)
     return re;
 }
 
-void mpm_free_patterns(mpm_re_pattern *pattern)
+void mpm_private_free_patterns(mpm_re_pattern *pattern)
 {
     mpm_re_pattern *next;
     while (pattern) {
@@ -55,7 +55,7 @@ void mpm_free(mpm_re *re)
 {
     if (re->flags & RE_MODE_COMPILE) {
         if (re->compile.patterns)
-            mpm_free_patterns(re->compile.patterns);
+            mpm_private_free_patterns(re->compile.patterns);
     } else {
         if (re->run.compiled_pattern)
             free(re->run.compiled_pattern);
@@ -82,6 +82,8 @@ char *mpm_error_to_string(int error_code)
         return "Invalid or unsupported arguments";
     case MPM_PATTERN_LIMIT:
         return "Cannot add more regular expressions (max " TOSTRING(PATTERN_LIMIT) ")";
+    case MPM_TOO_LOW_RATING:
+        return "Pattern is not suitable for a DFA based engine";
     case MPM_RE_ALREADY_COMPILED:
         return "Pattern has been already compiled by mpm_compile";
     case MPM_RE_IS_NOT_COMPILED:

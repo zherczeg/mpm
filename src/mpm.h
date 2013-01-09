@@ -57,14 +57,16 @@ typedef struct mpm_re_internal mpm_re;
 #define MPM_INVALID_ARGS                6
 /*! Cannot add more regular expressions (max 32). */
 #define MPM_PATTERN_LIMIT               7
+/*! Pattern is not suitable for a DFA based engine. */
+#define MPM_TOO_LOW_RATING              8
 /*! Pattern has been already compiled by mpm_compile. */
-#define MPM_RE_ALREADY_COMPILED         8
+#define MPM_RE_ALREADY_COMPILED         9
 /*! Pattern must be compiled first by mpm_compile. */
-#define MPM_RE_IS_NOT_COMPILED          9
+#define MPM_RE_IS_NOT_COMPILED          10
 /*! Number of allowed states is reached. */
-#define MPM_STATE_MACHINE_LIMIT         10
+#define MPM_STATE_MACHINE_LIMIT         11
 /*! No such pattern (invalid index argument). */
-#define MPM_NO_SUCH_PATTERN             11
+#define MPM_NO_SUCH_PATTERN             12
 
 char *mpm_error_to_string(int error_code);
 
@@ -100,9 +102,12 @@ void mpm_free(mpm_re *re);
 #define MPM_ADD_DOTALL                  0x008
 /*! Extended regular expression (see mpm_add). */
 #define MPM_ADD_EXTENDED                0x010
+/*! Returns with MPM_TOO_LOW_RATING if the pattern is not
+    suitable for matching with a DFA based engine (see mpm_add). */
+#define MPM_ADD_TEST_RATING             0x020
 /* This flag is ignored if MPM_VERBOSE is undefined. */
 /*! Verbose the operations of mpm_add. */
-#define MPM_ADD_VERBOSE                 0x020
+#define MPM_ADD_VERBOSE                 0x040
 /*! \brief Add a fixed string (all characters are treated
  *         as normal characters). Can only be combined with
  *         MPM_ADD_CASELESS flag.

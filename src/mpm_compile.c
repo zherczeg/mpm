@@ -704,7 +704,7 @@ int mpm_compile(mpm_re *re, mpm_uint32 flags)
     hashmap_free(map);
     re->flags &= ~RE_MODE_COMPILE;
     if (re->compile.patterns)
-        mpm_free_patterns(re->compile.patterns);
+        mpm_private_free_patterns(re->compile.patterns);
 
     re->run.compiled_pattern = compiled_pattern;
     re->run.non_newline_offset = non_newline_offset;

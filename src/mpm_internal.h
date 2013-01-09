@@ -113,7 +113,8 @@ struct mpm_re_internal {
 #define DFA_GET_BIT(set, bit)       ((set)[(bit) >> 5] & (1 << ((bit) & 0x1f)))
 
 /* Private, shared functions. */
-void mpm_free_patterns(mpm_re_pattern *pattern);
+int mpm_private_rating(mpm_re_pattern *pattern);
+void mpm_private_free_patterns(mpm_re_pattern *pattern);
 
 #if defined MPM_VERBOSE && MPM_VERBOSE
 void mpm_print_char_range(uint8_t *bitset);

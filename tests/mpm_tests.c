@@ -479,7 +479,7 @@ typedef struct compiled_pattern {
     char *pattern;
 } compiled_pattern;
 
-static void load_pattern_list(char* file_name, int min_rating)
+static void load_pattern_list(char* file_name)
 {
     FILE *f = fopen(file_name, "rt");
     char data[MAX_LINE_LENGTH];
@@ -518,8 +518,9 @@ static void load_pattern_list(char* file_name, int min_rating)
                 continue;
 
             ptr = data + ((data[6] == '!') ? 9 : 8);
-            if (mpm_add(current_re, (mpm_char8*)ptr, flags) != MPM_NO_ERROR) {
-                /* printf("Cannot add regex: line:%d %s\n", line, ptr); */
+            flags = mpm_add(current_re, (mpm_char8*)ptr, flags | MPM_ADD_TEST_RATING);
+            if (flags != MPM_NO_ERROR) {
+                printf("Warning: mpm_add returned with '%s' in line:%d '%s'\n", mpm_error_to_string(flags), line, ptr);
                 ptr = NULL;
             }
 
@@ -530,24 +531,21 @@ static void load_pattern_list(char* file_name, int min_rating)
                 data[len - 1] = '\0';
         } else if (memcmp(data, "pattern ", 8) == 0) {
             ptr = process_fixed_string(data);
-            if (mpm_add(current_re, (mpm_char8*)(data + 8), MPM_ADD_FIXED(ptr - (data + 8))) != MPM_NO_ERROR) {
-                /* printf("WARNING: Cannot add fixed string: line:%d %s\n", line, data + 8); */
+            flags = mpm_add(current_re, (mpm_char8*)(data + 8), MPM_ADD_FIXED(ptr - (data + 8)) | MPM_ADD_TEST_RATING);
+            if (flags != MPM_NO_ERROR) {
+                printf("Warning: mpm_add returned with '%s' in line:%d '%s'\n", mpm_error_to_string(flags), line, data + 8);
                 ptr = NULL;
             } else
                 ptr = data + 8;
         } else {
+            flags = MPM_NO_ERROR;
             ptr = NULL;
-            printf("WARNING: Unknown type: line:%d %s\n", line, data);
+            printf("Warning: Unknown type: line:%d %s\n", line, data);
         }
 
-        if (ptr) {
-            len = mpm_rating(current_re, 0);
-            if (len <= min_rating) {
-                printf("NOTE: Too low rate(%d < %d): %s\n", len, min_rating, data);
-                skipped_count++;
-                ptr = NULL;
-            }
-        } else
+        if (flags == MPM_TOO_LOW_RATING)
+            skipped_count++;
+        else if (flags != MPM_NO_ERROR)
             unsupported_count++;
 
         line++;
@@ -607,9 +605,11 @@ static void load_pattern_list(char* file_name, int min_rating)
         first_pattern = last_pattern;
     }
 
-    printf("%d patterns are processed\n  %d successfully loaded\n"
-           "  %d ignored because of low rating\n  %d ignored because they are unsupported",
-           count + skipped_count + unsupported_count, count, skipped_count, unsupported_count);
+    line = count + skipped_count + unsupported_count;
+    printf("%d patterns are processed\n  %d (%d%%) successfully loaded\n"
+           "  %d (%d%%) ignored because of low rating\n  %d (%d%%) ignored because they are unsupported\n\n",
+           line, count, count * 100 / line, skipped_count, skipped_count * 100 / line,
+           unsupported_count, unsupported_count * 100 / line);
 }
 
 static void load_input(char *file_name)
@@ -690,7 +690,7 @@ static void new_feature(void)
     mpm_re *re;
     int i;
 
-    load_pattern_list("../../patterns3.txt", -8);
+    load_pattern_list("../../patterns3.txt");
     if (!loaded_items)
         return;
 
