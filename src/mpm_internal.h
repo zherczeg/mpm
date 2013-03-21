@@ -48,7 +48,7 @@
 /* Eight, 32 bit words. */
 #define CHAR_SET_SIZE          8
 /* A non-valid ID or offset. */
-#define DFA_NO_DATA            ((uint32_t)-1)
+#define DFA_NO_DATA            ((mpm_uint32)-1)
 
 #define TOSTRING_IMPL(exp)     #exp
 #define TOSTRING(exp)          TOSTRING_IMPL(exp)
@@ -60,7 +60,7 @@
 
 /* OPCODE_END. */
 #define OPCODE_END             0
-/* OPCODE_SET, 32 byte long bit mask (same as eight uint32_t). */
+/* OPCODE_SET, 32 byte long bit mask (same as eight mpm_uint32). */
 #define OPCODE_SET             1
 /* OPCODE_JUMP | (INDEX << OPCODE_ARG_SHIFT) */
 #define OPCODE_JUMP            2
@@ -74,10 +74,10 @@
 /* A DFA representation of a pattern */
 typedef struct mpm_re_pattern {
     struct mpm_re_pattern *next;
-    uint32_t flags;
-    uint32_t term_range_start;
-    uint32_t term_range_size;
-    uint32_t word_code[1];
+    mpm_uint32 flags;
+    mpm_uint32 term_range_start;
+    mpm_uint32 term_range_size;
+    mpm_uint32 word_code[1];
 } mpm_re_pattern;
 
 #define RE_MODE_COMPILE        0x1
@@ -87,28 +87,28 @@ typedef struct mpm_re_pattern {
 /* Internal representation of the regular expression. */
 struct mpm_re_internal {
     /* These members are used by mpm_add(). */
-    uint32_t flags;
+    mpm_uint32 flags;
     union {
         struct {
             mpm_re_pattern *patterns;
-            uint32_t next_id;
-            uint32_t next_term_index;
+            mpm_uint32 next_id;
+            mpm_uint32 next_term_index;
         } compile;
         struct {
-            uint8_t* compiled_pattern;
-            uint32_t non_newline_offset;
-            uint32_t newline_offset;
+            mpm_uint8* compiled_pattern;
+            mpm_uint32 non_newline_offset;
+            mpm_uint32 newline_offset;
         } run;
     };
 };
 
 #define CHARSET_CLEAR(set)          memset((set), 0x00, 32)
 #define CHARSET_SET(set)            memset((set), 0xff, 32)
-#define CHARSET_GETBIT(set, bit)    (((uint8_t*)(set))[(bit) >> 3] & (1 << ((bit) & 0x7)))
-#define CHARSET_CLEARBIT(set, bit)  (((uint8_t*)(set))[(bit) >> 3] &= ~(1 << ((bit) & 0x7)))
-#define CHARSET_SETBIT(set, bit)    (((uint8_t*)(set))[(bit) >> 3] |= (1 << ((bit) & 0x7)))
+#define CHARSET_GETBIT(set, bit)    (((mpm_uint8*)(set))[(bit) >> 3] & (1 << ((bit) & 0x7)))
+#define CHARSET_CLEARBIT(set, bit)  (((mpm_uint8*)(set))[(bit) >> 3] &= ~(1 << ((bit) & 0x7)))
+#define CHARSET_SETBIT(set, bit)    (((mpm_uint8*)(set))[(bit) >> 3] |= (1 << ((bit) & 0x7)))
 
-/* uint32_t based bitset is used, but we need to avoid issues with alignment. */
+/* mpm_uint32 based bitset is used, but we need to avoid issues with alignment. */
 #define DFA_SETBIT(set, bit)        ((set)[(bit) >> 5] |= (1 << ((bit) & 0x1f)))
 #define DFA_GET_BIT(set, bit)       ((set)[(bit) >> 5] & (1 << ((bit) & 0x1f)))
 
@@ -117,7 +117,7 @@ int mpm_private_rating(mpm_re_pattern *pattern);
 void mpm_private_free_patterns(mpm_re_pattern *pattern);
 
 #if defined MPM_VERBOSE && MPM_VERBOSE
-void mpm_print_char_range(uint8_t *bitset);
+void mpm_print_char_range(mpm_uint8 *bitset);
 #endif
 
 #endif // mpm_internal_h

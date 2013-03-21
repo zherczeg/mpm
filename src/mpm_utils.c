@@ -159,7 +159,7 @@ static void print_character(int character)
 }
 
 /* Exported function. */
-void mpm_print_char_range(uint8_t *bitset)
+void mpm_print_char_range(mpm_uint8 *bitset)
 {
     int bit = 0x01;
     int character = 0;

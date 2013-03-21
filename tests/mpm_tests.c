@@ -685,7 +685,7 @@ static void new_feature(void)
         printf("Parallel run (4): %d ms (average)\n", (int)(time * 1000 / (CLOCKS_PER_SEC * 32)));
     }
 
-#else
+#elif 0
 
     mpm_re *re;
     int i;
@@ -713,6 +713,51 @@ static void new_feature(void)
     }
 
     mpm_compile(re, MPM_COMPILE_VERBOSE_STATS);
+
+#else
+
+    mpm_rule_pattern rules[] = {
+        /* Rule 0 */
+        { (mpm_char8*)"abc{2}", MPM_NEW_RULE | MPM_ADD_CASELESS },
+        { (mpm_char8*)"a*b", 0 },
+
+        /* Rule 1 */
+        { (mpm_char8*)"abcc", MPM_NEW_RULE | MPM_ADD_CASELESS },
+        { (mpm_char8*)"a*b", 0 },
+        { (mpm_char8*)"(a)\\1", 0 },
+
+        /* Rule 2 */
+        { (mpm_char8*)"(a)\\1", MPM_NEW_RULE },
+        { (mpm_char8*)"V.e.r.y long pattern #########.#########.A", 0 },
+        { (mpm_char8*)"(?=a)aa", 0 },
+
+        /* Rule 3 */
+        { (mpm_char8*)"evil.+software", MPM_NEW_RULE | MPM_ADD_DOTALL },
+        { (mpm_char8*)"Rule#1", MPM_ADD_FIXED(6) },
+        { (mpm_char8*)"Rule#2", MPM_ADD_FIXED(6) },
+        { (mpm_char8*)"Rule#3", MPM_ADD_FIXED(6) },
+        { (mpm_char8*)"Rule#4", MPM_ADD_FIXED(6) },
+
+        /* Rule 4 */
+        { (mpm_char8*)"evil..*software", MPM_NEW_RULE | MPM_ADD_DOTALL },
+        { (mpm_char8*)"V.e.r.y long pattern #########.#########.B", 0 },
+        { (mpm_char8*)"Rule#2", MPM_ADD_FIXED(6) },
+        { (mpm_char8*)"Rule#3", MPM_ADD_FIXED(6) },
+        { (mpm_char8*)"Rule#4", MPM_ADD_FIXED(6) },
+        { (mpm_char8*)"Rule#5", MPM_ADD_FIXED(6) },
+        { (mpm_char8*)"Rule#6", MPM_ADD_FIXED(6) },
+        { (mpm_char8*)"(?=a)aa", 0 },
+
+        /* Rule 5 */
+        { (mpm_char8*)"12345678901234567890123456789012345678901234567890", MPM_NEW_RULE | MPM_ADD_DOTALL },
+        { (mpm_char8*)"V.e.r.y long pattern #########.#########.B", 0 },
+        { (mpm_char8*)"Rule#5", MPM_ADD_FIXED(6) },
+        { (mpm_char8*)"Rule#6", MPM_ADD_FIXED(6) },
+        { (mpm_char8*)"Rule#7", MPM_ADD_FIXED(6) },
+        { (mpm_char8*)"Rule#8", MPM_ADD_FIXED(6) },
+    };
+
+    mpm_compile_rules(rules, sizeof(rules) / sizeof(mpm_rule_pattern), MPM_COMPILE_RULES_VERBOSE);
 
 #endif
 }

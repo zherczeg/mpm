@@ -30,17 +30,17 @@
 typedef struct mpm_hashitem {
     struct mpm_hashitem *next;
     struct mpm_hashitem *next_unprocessed;
-    uint8_t *next_state_map;
-    uint32_t hash;
-    uint32_t id;
-    uint32_t next_state_map_size;
+    mpm_uint8 *next_state_map;
+    mpm_uint32 hash;
+    mpm_uint32 id;
+    mpm_uint32 next_state_map_size;
     /* Variable length member. */
-    uint32_t term_set[1];
+    mpm_uint32 term_set[1];
 } mpm_hashitem;
 
 typedef struct mpm_id_offset_map {
     struct mpm_hashitem *item;
-    uint32_t offset;
+    mpm_uint32 offset;
 } mpm_id_offset_map;
 
 /* Items can only be added, but they never removed. */
@@ -48,22 +48,22 @@ typedef struct mpm_id_offset_map {
 typedef struct mpm_hashmap {
     /* The map is optimized for 32 bit words.
        length measured in 32 bit words, size measured in bytes. */
-    uint32_t term_set_length;
-    uint32_t end_state_set_length;
-    uint32_t record_size;
-    uint32_t allocation_size;
-    uint32_t item_count;
+    mpm_uint32 term_set_length;
+    mpm_uint32 end_state_set_length;
+    mpm_uint32 record_size;
+    mpm_uint32 allocation_size;
+    mpm_uint32 item_count;
     /* The mask must have the value of 2^n-1 */
-    uint32_t mask;
+    mpm_uint32 mask;
     mpm_hashitem **buckets;
     /* This term_set is added to the list by hashmap_insert. */
-    uint32_t *current;
+    mpm_uint32 *current;
 
     /* Other global variables. */
     /* Starting term_set. */
-    uint32_t *start;
-    uint32_t **term_map;
-    uint32_t **term_list;
+    mpm_uint32 *start;
+    mpm_uint32 **term_map;
+    mpm_uint32 **term_list;
     mpm_id_offset_map *id_offset_map;
     /* Not processed items. */
     mpm_hashitem *next_unprocessed;
@@ -71,9 +71,9 @@ typedef struct mpm_hashmap {
 
 #define DEFAULT_MAP_SIZE 1024
 
-static int hashmap_init(mpm_hashmap *map, uint32_t term_set_length, uint32_t end_state_set_length)
+static int hashmap_init(mpm_hashmap *map, mpm_uint32 term_set_length, mpm_uint32 end_state_set_length)
 {
-    uint32_t no_terms = term_set_length;
+    mpm_uint32 no_terms = term_set_length;
 
     if (term_set_length <= 0)
         term_set_length = 1;
@@ -83,8 +83,8 @@ static int hashmap_init(mpm_hashmap *map, uint32_t term_set_length, uint32_t end
         end_state_set_length = 1;
     map->end_state_set_length = (term_set_length + 31) >> 5;
 
-    map->record_size = (map->term_set_length + map->end_state_set_length) * sizeof(uint32_t);
-    map->allocation_size = sizeof(mpm_hashitem) + map->record_size - sizeof(uint32_t);
+    map->record_size = (map->term_set_length + map->end_state_set_length) * sizeof(mpm_uint32);
+    map->allocation_size = sizeof(mpm_hashitem) + map->record_size - sizeof(mpm_uint32);
 
     map->item_count = 0;
     map->mask = DEFAULT_MAP_SIZE - 1;
@@ -103,13 +103,13 @@ static int hashmap_init(mpm_hashmap *map, uint32_t term_set_length, uint32_t end
         return 1;
     memset(map->buckets, 0, DEFAULT_MAP_SIZE * sizeof(mpm_hashitem *));
 
-    map->current = (uint32_t *)malloc(map->record_size * 2);
+    map->current = (mpm_uint32 *)malloc(map->record_size * 2);
     if (!map->current)
         return 1;
 
     map->start = map->current + (map->term_set_length + map->end_state_set_length);
 
-    map->term_map = (uint32_t **)malloc(no_terms * sizeof(uint32_t *) * 2);
+    map->term_map = (mpm_uint32 **)malloc(no_terms * sizeof(mpm_uint32 *) * 2);
     if (!map->term_map)
         return 1;
     map->term_list = map->term_map + no_terms;
@@ -122,7 +122,7 @@ static void hashmap_free(mpm_hashmap *map)
     mpm_hashitem *item;
     mpm_hashitem *next;
     mpm_hashitem **buckets;
-    uint32_t i;
+    mpm_uint32 i;
 
     if (map->buckets) {
         buckets = map->buckets;
@@ -147,17 +147,17 @@ static void hashmap_free(mpm_hashmap *map)
         free(map->id_offset_map);
 }
 
-static uint32_t hashmap_insert(mpm_hashmap *map)
+static mpm_uint32 hashmap_insert(mpm_hashmap *map)
 {
-    uint32_t record_size = map->record_size;
-    uint32_t hash = 0xaaaaaaaa;
-    uint8_t *data_ptr = (uint8_t*)map->current;
-    uint32_t *current = map->current;
+    mpm_uint32 record_size = map->record_size;
+    mpm_uint32 hash = 0xaaaaaaaa;
+    mpm_uint8 *data_ptr = (mpm_uint8 *)map->current;
+    mpm_uint32 *current = map->current;
     mpm_hashitem *item, *next;
-    uint32_t new_mask;
+    mpm_uint32 new_mask;
     mpm_hashitem **new_buckets;
     mpm_hashitem **buckets = map->buckets;
-    uint32_t id;
+    mpm_uint32 id;
     int i;
 
     /* Hash from Arash Partow. */
@@ -165,9 +165,10 @@ static uint32_t hashmap_insert(mpm_hashmap *map)
     do {
         // Processing two bytes in one step.
         hash ^= (hash << 7) ^ ((*data_ptr) * (hash >> 3));
+        data_ptr++;
         hash ^= ~((hash << 11) + ((*data_ptr) ^ (hash >> 5)));
         data_ptr++;
-    } while (record_size--);
+    } while (--record_size);
 
     /* Search this item in the list. */
     item = buckets[hash & map->mask];
@@ -230,8 +231,8 @@ static int hashmap_sanity_check(mpm_hashmap *map)
 {
     mpm_hashitem *item;
     mpm_hashitem **buckets = map->buckets;
-    uint32_t mask = map->mask;
-    uint32_t i;
+    mpm_uint32 mask = map->mask;
+    mpm_uint32 i;
 
     if (((mask + 1) & mask) != 0)
         return 1;
@@ -248,11 +249,11 @@ static int hashmap_sanity_check(mpm_hashmap *map)
 }
 
 #if defined MPM_VERBOSE && MPM_VERBOSE
-static void print_terms(mpm_hashmap *map, uint32_t *base)
+static void print_terms(mpm_hashmap *map, mpm_uint32 *base)
 {
-    uint32_t bit;
-    uint32_t *bit_set;
-    uint32_t length;
+    mpm_uint32 bit;
+    mpm_uint32 *bit_set;
+    mpm_uint32 length;
     int32_t term;
     int32_t last_set_term;
     int value = 2, comma;
@@ -319,9 +320,9 @@ static void hashmap_stats(mpm_hashmap *map)
 {
     mpm_hashitem *item;
     mpm_hashitem **buckets = map->buckets;
-    uint32_t mask = map->mask;
+    mpm_uint32 mask = map->mask;
     int count, max = 0;
-    uint32_t i;
+    mpm_uint32 i;
 
     for (i = mask + 1; i > 0; i--) {
         item = buckets[i - 1];
@@ -351,19 +352,19 @@ int mpm_compile(mpm_re *re, mpm_uint32 flags)
     mpm_re_pattern *pattern;
     mpm_hashitem *item;
     mpm_id_offset_map *id_offset, *last_id_offset;
-    uint32_t *word_code;
-    uint32_t *bit_set, *bit_set_end, *other_bit_set;
-    uint32_t term_base, term_bits;
-    uint32_t **term, **last_term;
-    uint32_t *id_index, *last_id_index;
-    uint8_t *compiled_pattern;
-    uint8_t id_map[256];
-    uint32_t id_indices[256];
-    uint32_t available_chars[CHAR_SET_SIZE];
-    uint32_t consumed_chars[CHAR_SET_SIZE];
-    uint32_t state_map_size = (re->flags & RE_CHAR_SET_256) ? 256 : 128;
-    uint32_t non_newline_offset, newline_offset;
-    uint32_t i, j, id, offset, pattern_flags;
+    mpm_uint32 *word_code;
+    mpm_uint32 *bit_set, *bit_set_end, *other_bit_set;
+    mpm_uint32 term_base, term_bits;
+    mpm_uint32 **term, **last_term;
+    mpm_uint32 *id_index, *last_id_index;
+    mpm_uint8 *compiled_pattern;
+    mpm_uint8 id_map[256];
+    mpm_uint32 id_indices[256];
+    mpm_uint32 available_chars[CHAR_SET_SIZE];
+    mpm_uint32 consumed_chars[CHAR_SET_SIZE];
+    mpm_uint32 state_map_size = (re->flags & RE_CHAR_SET_256) ? 256 : 128;
+    mpm_uint32 non_newline_offset, newline_offset;
+    mpm_uint32 i, j, id, offset, pattern_flags;
 
     if (!(re->flags & RE_MODE_COMPILE))
         return MPM_RE_ALREADY_COMPILED;
@@ -517,7 +518,7 @@ int mpm_compile(mpm_re *re, mpm_uint32 flags)
             } while (term_base & 0x1f);
         }
 
-        memset(available_chars, 0xff, CHAR_SET_SIZE * sizeof(uint32_t));
+        memset(available_chars, 0xff, CHAR_SET_SIZE * sizeof(mpm_uint32));
         last_id_index = id_indices;
 
         for (i = 0; i < state_map_size; i++) {
@@ -526,7 +527,7 @@ int mpm_compile(mpm_re *re, mpm_uint32 flags)
 
             /* Get those characters, which have the same bit set,
                and the list of reachable states. */
-            memset(consumed_chars, 0xff, CHAR_SET_SIZE * sizeof(uint32_t));
+            memset(consumed_chars, 0xff, CHAR_SET_SIZE * sizeof(mpm_uint32));
             memcpy(MAP(current), MAP(start), MAP(record_size));
             term = MAP(term_list);
 
@@ -577,7 +578,7 @@ int mpm_compile(mpm_re *re, mpm_uint32 flags)
 #if defined MPM_VERBOSE && MPM_VERBOSE
             if (flags & MPM_COMPILE_VERBOSE) {
                 printf("  For [");
-                mpm_print_char_range((uint8_t *)consumed_chars);
+                mpm_print_char_range((mpm_uint8 *)consumed_chars);
                 printf("] next state: %d\n", (int)id);
             }
 #endif
@@ -601,9 +602,9 @@ int mpm_compile(mpm_re *re, mpm_uint32 flags)
                     id_map[j] = id;
         }
 
-        i = (last_id_index - id_indices) * sizeof(uint32_t);
+        i = (last_id_index - id_indices) * sizeof(mpm_uint32);
         MAP(next_unprocessed)->next_state_map_size = state_map_size + i;
-        MAP(next_unprocessed)->next_state_map = (uint8_t *)malloc(state_map_size + i);
+        MAP(next_unprocessed)->next_state_map = (mpm_uint8 *)malloc(state_map_size + i);
         if (!MAP(next_unprocessed)->next_state_map) {
             hashmap_free(map);
             return MPM_NO_MEMORY;
@@ -658,7 +659,7 @@ int mpm_compile(mpm_re *re, mpm_uint32 flags)
     while (id_offset < last_id_offset) {
         id_offset->offset = offset;
         /* At the moment we only support 32 end states. */
-        offset += sizeof(uint32_t) + id_offset->item->next_state_map_size;
+        offset += sizeof(mpm_uint32) + id_offset->item->next_state_map_size;
         if (offset > 0x7fffffff) {
             hashmap_free(map);
             return MPM_STATE_MACHINE_LIMIT;
@@ -670,14 +671,14 @@ int mpm_compile(mpm_re *re, mpm_uint32 flags)
 
 #if defined MPM_VERBOSE && MPM_VERBOSE
     if (flags & MPM_COMPILE_VERBOSE_STATS) {
-        i = sizeof(uint32_t) + (MAP(item_count) * sizeof(uint32_t) * 256);
+        i = sizeof(mpm_uint32) + (MAP(item_count) * sizeof(mpm_uint32) * 256);
         printf("Statistics: patterns: %d, terms: %d, Compression save: %.2lf%% (%d bytes instead of %d bytes)\n",
             (int)re->compile.next_id, (int)re->compile.next_term_index,
-            1 - ((double)offset / (double)i), offset, (int)i);
+            (1.0 - ((double)offset / (double)i)) * 100.0, offset, (int)i);
     }
 #endif
 
-    compiled_pattern = (uint8_t *)malloc(offset);
+    compiled_pattern = (mpm_uint8 *)malloc(offset);
     if (!compiled_pattern) {
         hashmap_free(map);
         return MPM_NO_MEMORY;
@@ -685,8 +686,8 @@ int mpm_compile(mpm_re *re, mpm_uint32 flags)
 
     id_offset = MAP(id_offset_map);
     while (id_offset < last_id_offset) {
-        id_index = (uint32_t *)(id_offset->item->next_state_map + state_map_size);
-        last_id_index = (uint32_t *)(id_offset->item->next_state_map + id_offset->item->next_state_map_size);
+        id_index = (mpm_uint32 *)(id_offset->item->next_state_map + state_map_size);
+        last_id_index = (mpm_uint32 *)(id_offset->item->next_state_map + id_offset->item->next_state_map_size);
         offset = id_offset->offset;
         do {
             /* Resolve the states to physical offsets. */
@@ -695,8 +696,8 @@ int mpm_compile(mpm_re *re, mpm_uint32 flags)
         } while (id_index < last_id_index);
 
         /* Combine the the state descriptor. */
-        ((uint32_t*)(compiled_pattern + id_offset->offset))[0] = id_offset->item->term_set[MAP(term_set_length)];
-        memcpy(compiled_pattern + id_offset->offset + sizeof(uint32_t), id_offset->item->next_state_map, id_offset->item->next_state_map_size);
+        ((mpm_uint32 *)(compiled_pattern + id_offset->offset))[0] = id_offset->item->term_set[MAP(term_set_length)];
+        memcpy(compiled_pattern + id_offset->offset + sizeof(mpm_uint32), id_offset->item->next_state_map, id_offset->item->next_state_map_size);
         id_offset++;
     }
 

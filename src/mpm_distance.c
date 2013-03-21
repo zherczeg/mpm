@@ -31,8 +31,8 @@ int mpm_distance(mpm_re *re1, mpm_size index1, mpm_re *re2, mpm_size index2)
 {
     mpm_re_pattern *pattern1;
     mpm_re_pattern *pattern2;
-    uint32_t *word_code1, *word_code2;
-    uint32_t i, j, size1, size2;
+    mpm_uint32 *word_code1, *word_code2;
+    mpm_uint32 i, j, size1, size2;
     int32_t a, b;
     int32_t *base, *other, *previous, *current;
 
@@ -114,9 +114,9 @@ int mpm_distance(mpm_re *re1, mpm_size index1, mpm_re *re2, mpm_size index2)
 
 int mpm_private_rating(mpm_re_pattern *pattern)
 {
-    uint32_t *word_code, *bit_set, *bit_set_end;
-    uint32_t i, size, ones, value;
-    int rate, char_types[3];
+    mpm_uint32 *word_code, *bit_set, *bit_set_end;
+    mpm_uint32 i, size, ones, value;
+    int rate, max, char_types[3];
 
     word_code = pattern->word_code;
     size = pattern->term_range_size;
@@ -151,7 +151,16 @@ int mpm_private_rating(mpm_re_pattern *pattern)
     }
     /* Result between 0-16. */
     rate = ((char_types[2] * 8) + (char_types[1] * 2) + char_types[0]) * 2 / pattern->term_range_size;
-    if (char_types[2] + char_types[1] / 2 + char_types[0] / 8 > 6)
+    if (pattern->term_range_size >= 14)
+        max = pattern->term_range_size / 4;
+    else if (pattern->term_range_size >= 9)
+        max = pattern->term_range_size / 3;
+    else if (pattern->term_range_size >= 6)
+        max = pattern->term_range_size / 2;
+    else
+        max = 2;
+
+    if (char_types[2] + char_types[1] / 2 + char_types[0] / 4 >= max)
         rate = 16;
     if (pattern->term_range_size < 3)
         rate = rate / 2;

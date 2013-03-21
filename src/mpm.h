@@ -31,6 +31,8 @@
 typedef unsigned char mpm_char8;
   /*! Length of the subject in mpm_exec. */
 typedef unsigned long mpm_size;
+  /*! 8 bit long unsigned integer for bit sets. */
+typedef unsigned char mpm_uint8;
   /*! 32 bit long unsigned integer for flags and result bit sets. */
 typedef unsigned int mpm_uint32;
 
@@ -242,5 +244,20 @@ int mpm_clustering(mpm_cluster_item *items, mpm_size no_items, mpm_uint32 flags)
  *  \param flags flags started by MPM_CLUSTERING_ prefix.
  *  \return MPM_NO_ERROR on success.
  */
+
+/*! Marks the start of a new rule for mpm_compile_rules. */
+#define MPM_NEW_RULE                    0x100
+
+/*! Structure used only by mpm_create_rule_set. */
+typedef struct mpm_rule_pattern {
+    mpm_char8 *pattern;
+    mpm_uint32 flags;
+} mpm_rule_pattern;
+
+  /*  This flag is ignored if MPM_VERBOSE is undefined. */
+  /*! Verbose the operations of mpm_compile_rules. */
+#define MPM_COMPILE_RULES_VERBOSE       0x001
+
+int mpm_compile_rules(mpm_rule_pattern *rules, mpm_size no_rule_patterns, mpm_uint32 flags);
 
 #endif // mpm_h
