@@ -33,6 +33,8 @@ typedef unsigned char mpm_char8;
 typedef unsigned long mpm_size;
   /*! 8 bit long unsigned integer for bit sets. */
 typedef unsigned char mpm_uint8;
+  /*! 16 bit long unsigned integer for pattern lists. */
+typedef unsigned short mpm_uint16;
   /*! 32 bit long unsigned integer for flags and result bit sets. */
 typedef unsigned int mpm_uint32;
 
