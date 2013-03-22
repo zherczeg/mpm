@@ -146,6 +146,8 @@ int mpm_compile(mpm_re *re, mpm_uint32 flags);
  *  \return MPM_NO_ERROR on success.
  */
 
+/* Execute the pattern. */
+
 int mpm_exec(mpm_re *re, mpm_char8 *subject, mpm_size length, mpm_size offset, mpm_uint32 *result);
 
 /*! \fn int mpm_exec(mpm_re *re, mpm_char8 *subject, mpm_size length, mpm_size offset, mpm_uint32 *result)
@@ -173,6 +175,15 @@ int mpm_exec4(mpm_re **re, mpm_char8 *subject, mpm_size length, mpm_size offset,
  *                are described in mpm_exec. The first buffer belongs to re[0],
  *                the second to re[1], and so on.
  *  \return MPM_NO_ERROR on success.
+ */
+
+/* Utility functions. */
+
+mpm_re * mpm_dummy_re(void);
+
+/* ! \fn mpm_re * mpm_dummy_re(void)
+ *  \brief Returns a dummy regular expression, which never matches anything.
+ *         Can be passed as a valid re for mpm_exec or mpm_exec4.
  */
 
 int mpm_combine(mpm_re *destination_re, mpm_re *source_re);
@@ -247,19 +258,57 @@ int mpm_clustering(mpm_cluster_item *items, mpm_size no_items, mpm_uint32 flags)
  *  \return MPM_NO_ERROR on success.
  */
 
+/* Rule lists management. */
+
 /*! Marks the start of a new rule for mpm_compile_rules. */
-#define MPM_NEW_RULE                    0x100
+#define MPM_RULE_NEW                    0x100
 
 /*! Structure used only by mpm_create_rule_set. */
 typedef struct mpm_rule_pattern {
-    mpm_char8 *pattern;
-    mpm_uint32 flags;
+    mpm_char8 *pattern;    /*!< Pattern string. */
+    mpm_uint32 flags;      /*!< Any combination of MPM_ADD_ and MPM_RULE_ flags. */
 } mpm_rule_pattern;
 
   /*  This flag is ignored if MPM_VERBOSE is undefined. */
   /*! Verbose the operations of mpm_compile_rules. */
 #define MPM_COMPILE_RULES_VERBOSE       0x001
 
-int mpm_compile_rules(mpm_rule_pattern *rules, mpm_size no_rule_patterns, mpm_uint32 flags);
+/*! Private representation of a regular expression set. */
+struct mpm_rule_list_internal;
+/*! Public representation of a regular expression set. */
+typedef struct mpm_rule_list_internal mpm_rule_list;
+
+int mpm_compile_rules(mpm_rule_pattern *rules, mpm_size no_rule_patterns, mpm_rule_list **result_rule_list, mpm_uint32 flags);
+
+/*! \fn int mpm_compile_rules(mpm_rule_pattern *rules, mpm_size no_rule_patterns, mpm_rule_list **result_rule_list, mpm_uint32 flags);
+ *  \brief Compiles a rule set to an internal representation
+ *  \param rules an array of mpm_rule_pattern items.
+ *  \param no_rule_patterns number of rules.
+ *  \param result_rule_list output argument, which contains the compiled rule set.
+ *  \param flags flags started by MPM_COMPILE_RULES_ prefix.
+ *  \return MPM_NO_ERROR on success.
+ */
+
+void mpm_rule_list_free(mpm_rule_list *rule_list);
+
+/*! \fn void mpm_rule_list_free(mpm_rule_list *rule_list)
+ *  \brief Free the compiled rule set.
+ *  \param rule_list a list returned by mpm_compile_rules
+ */
+
+int mpm_exec_list(mpm_rule_list *rule_list, mpm_char8 *subject, mpm_size length, mpm_size offset, mpm_uint32 *result);
+
+/*! \fn int mpm_exec_list(mpm_rule_list *rule_list, mpm_char8 *subject, mpm_size length, mpm_size offset, mpm_uint32 *result);
+ *  \brief Matches the compiled rule list to the subject string.
+ *  \param rule_list a list returned by mpm_compile_rules
+ *  \param subject points to the start of the subject buffer.
+ *  \param length length of the subject buffer.
+ *  \param offset starting position of the matching inside the subject buffer.
+ *  \param result points to a 32 bit long buffer where the result of the match
+ *         is stored. The first bit of the buffer represents the first rule
+ *         and it is set, if that rule matches. It is cleared otherwise. The
+ *         second bit represents the second rule, and so on.
+ *  \return MPM_NO_ERROR on success.
+ */
 
 #endif // mpm_h

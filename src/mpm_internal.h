@@ -102,6 +102,31 @@ struct mpm_re_internal {
     };
 };
 
+struct pattern_data;
+
+/* Each pattern set contains an mpm_re or a pcre pattern. */
+typedef struct pattern_list_item {
+    mpm_uint16 *rule_indices;
+    union {
+        mpm_uint32 priority;
+        void *pcre;
+    } u1;
+    union {
+        struct pattern_data *pattern;
+        mpm_re *re;
+        void *pcre_study;
+    } u2;
+} pattern_list_item;
+
+struct mpm_rule_list_internal {
+    mpm_uint16 *rule_indices;
+    mpm_size pattern_list_length;
+    mpm_size rule_count;
+    mpm_uint32 result_length;
+    mpm_uint32 result_last_word;
+    pattern_list_item pattern_list[1];
+};
+
 #define CHARSET_CLEAR(set)          memset((set), 0x00, 32)
 #define CHARSET_SET(set)            memset((set), 0xff, 32)
 #define CHARSET_GETBIT(set, bit)    (((mpm_uint8*)(set))[(bit) >> 3] & (1 << ((bit) & 0x7)))

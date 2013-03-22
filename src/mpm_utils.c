@@ -63,6 +63,20 @@ void mpm_free(mpm_re *re)
     free(re);
 }
 
+void mpm_rule_list_free(mpm_rule_list *rule_list)
+{
+    pattern_list_item *pattern_list = rule_list->pattern_list;
+    pattern_list_item *pattern_list_end = pattern_list + rule_list->pattern_list_length;
+    while (pattern_list < pattern_list_end) {
+        if (pattern_list->u2.re)
+            mpm_free(pattern_list->u2.re);
+        pattern_list++;
+    }
+
+    free(rule_list->rule_indices);
+    free(rule_list);
+}
+
 char *mpm_error_to_string(int error_code)
 {
     switch (error_code) {
@@ -100,7 +114,11 @@ char *mpm_error_to_string(int error_code)
 int mpm_combine(mpm_re *destination_re, mpm_re *source_re)
 {
     mpm_re_pattern *pattern;
-    int i;
+    mpm_uint32 i, id, term_index;
+    mpm_uint32 *word_code;
+
+    if (!destination_re || !source_re || destination_re == source_re)
+        return MPM_INVALID_ARGS;
 
     if (!(destination_re->flags & RE_MODE_COMPILE) || !(source_re->flags & RE_MODE_COMPILE))
         return MPM_RE_ALREADY_COMPILED;
@@ -127,9 +145,6 @@ int mpm_combine(mpm_re *destination_re, mpm_re *source_re)
     if (i != source_re->compile.next_id)
         return MPM_INTERNAL_ERROR;
 
-    destination_re->compile.next_id += source_re->compile.next_id;
-    destination_re->compile.next_term_index += source_re->compile.next_term_index;
-
     if (!destination_re->compile.patterns)
         destination_re->compile.patterns = source_re->compile.patterns;
     else {
@@ -137,7 +152,31 @@ int mpm_combine(mpm_re *destination_re, mpm_re *source_re)
         while (pattern->next)
             pattern = pattern->next;
         pattern->next = source_re->compile.patterns;
+
+        id = destination_re->compile.next_id;
+        term_index = destination_re->compile.next_term_index;
+        pattern = pattern->next;
+        while (pattern) {
+            pattern->term_range_start += term_index;
+            word_code = pattern->word_code + pattern->term_range_size;
+            if (*word_code != DFA_NO_DATA)
+                *word_code += id;
+            while (*(++word_code) != DFA_NO_DATA)
+                *word_code += term_index;
+
+            for (i = 0; i < pattern->term_range_size; i++) {
+                word_code = pattern->word_code + pattern->word_code[i] + CHAR_SET_SIZE;
+                if (*word_code != DFA_NO_DATA)
+                    *word_code += id;
+                while (*(++word_code) != DFA_NO_DATA)
+                     *word_code += term_index;
+            }
+            pattern = pattern->next;
+        }
     }
+
+    destination_re->compile.next_id += source_re->compile.next_id;
+    destination_re->compile.next_term_index += source_re->compile.next_term_index;
 
     free(source_re);
     return MPM_NO_ERROR;

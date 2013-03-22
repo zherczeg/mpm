@@ -54,7 +54,6 @@ int mpm_exec(mpm_re *re, mpm_char8 *subject, mpm_size length, mpm_size offset, m
         return MPM_NO_ERROR;
     }
 
-
     /* Simple matcher. */
     state_map = re->run.compiled_pattern + sizeof(mpm_uint32);
     current_result = 0;
@@ -227,4 +226,157 @@ int mpm_exec4(mpm_re **re, mpm_char8 *subject, mpm_size length, mpm_size offset,
     results[2] = current_result2 | GET_END_STATES(state_map2);
     results[3] = current_result3 | GET_END_STATES(state_map3);
     return MPM_NO_ERROR;
+}
+
+mpm_re * mpm_dummy_re(void)
+{
+    static mpm_char8 compiled_pattern[sizeof(mpm_uint32) + 128 + sizeof(mpm_uint32)];
+    static mpm_re re;
+    /* Thread safe assignment. */
+    re.run.compiled_pattern = compiled_pattern;
+    return &re;
+}
+
+int mpm_exec_list(mpm_rule_list *rule_list, mpm_char8 *subject, mpm_size length, mpm_size offset, mpm_uint32 *result)
+{
+    /* A complex matching algortihm with several gotos. */
+    pattern_list_item *next_pattern = rule_list->pattern_list;
+    pattern_list_item *next_re_pattern = next_pattern;
+    pattern_list_item *last_pattern = next_pattern + rule_list->pattern_list_length;
+    mpm_re *re_list[4];
+    pattern_list_item *pattern_list[4];
+    pattern_list_item **pattern_list_last;
+    pattern_list_item **pattern_list_next;
+    mpm_uint32 re_result[4];
+    mpm_uint32 *re_result_next;
+    mpm_uint32 result_bits;
+    mpm_re *dummy_re = mpm_dummy_re();
+    mpm_uint16 *rule_indices;
+    mpm_uint16 rule_index;
+
+    switch (rule_list->result_length) {
+    case 0:
+        result[0] = rule_list->result_last_word;
+        break;
+
+    case 4:
+        result[0] = 0xffffffff;
+        result[1] = rule_list->result_last_word;
+        break;
+
+    case 8:
+        result[0] = 0xffffffff;
+        result[1] = 0xffffffff;
+        result[2] = rule_list->result_last_word;
+        break;
+
+    default:
+        memset(result, 0xff, rule_list->result_length);
+        result[rule_list->result_length >> 2] = rule_list->result_last_word;
+        break;
+    }
+
+mainloop:
+    while (1) {
+        if (next_pattern >= last_pattern)
+            return MPM_NO_ERROR;
+
+        if (next_pattern->u1.pcre || next_pattern >= next_re_pattern) {
+            rule_indices = next_pattern->rule_indices;
+            while (1) {
+                rule_index = *rule_indices;
+                if (rule_index == RULE_LIST_END)
+                    break;
+                if (result[rule_index >> 5] & (1 << (rule_index & 0x1f))) {
+                    if (next_pattern->u1.pcre)
+                        goto pcre_match;
+                    goto re_match;
+                }
+                rule_index++;
+            }
+        }
+        next_pattern++;
+    }
+
+re_match:
+    /* Searching at most 4 other patterns. */
+    next_re_pattern = next_pattern + 1;
+    pattern_list[0] = next_pattern;
+    pattern_list_last = pattern_list + 1;
+    next_pattern++;
+
+    while (1) {
+        if (next_re_pattern >= last_pattern)
+            break;
+
+        if (!next_re_pattern->u1.pcre) {
+            rule_indices = next_pattern->rule_indices;
+            while (1) {
+                rule_index = *rule_indices;
+                if (rule_index == RULE_LIST_END)
+                    break;
+                if (result[rule_index >> 5] & (1 << (rule_index & 0x1f))) {
+                    *pattern_list_last++ = next_re_pattern;
+                    if (pattern_list_last >= pattern_list + 4) {
+                        if (!next_pattern->u1.pcre)
+                            next_pattern++;
+                        next_re_pattern++;
+                        goto re_list_full;
+                    }
+                    break;
+                }
+                rule_index++;
+            }
+        }
+        if (!next_pattern->u1.pcre)
+            next_pattern++;
+        next_re_pattern++;
+    }
+re_list_full:
+
+    if (pattern_list_last == pattern_list + 1) {
+        mpm_exec(pattern_list[0]->u2.re, subject, length, offset, re_result);
+    } else {
+        re_list[0] = pattern_list[0]->u2.re;
+        re_list[1] = pattern_list[1]->u2.re;
+        re_list[2] = (pattern_list_last > pattern_list + 2) ? pattern_list[2]->u2.re : dummy_re;
+        re_list[3] = (pattern_list_last > pattern_list + 3) ? pattern_list[3]->u2.re : dummy_re;
+        mpm_exec4(re_list, subject, length, offset, re_result);
+    }
+
+    pattern_list_next = pattern_list;
+    re_result_next = re_result;
+    while (1) {
+        result_bits = *re_result_next++;
+        rule_indices = pattern_list_next[0]->rule_indices;
+        while (1) {
+            if (result_bits & 0x1) {
+                do {
+                    rule_index = *rule_indices++;
+                } while (rule_index < PATTERN_LIST_END);
+            } else {
+                while (1) {
+                    rule_index = *rule_indices++;
+                    if (rule_index >= PATTERN_LIST_END)
+                        break;
+                    /* Clear bit in the result. */
+                    result[rule_index >> 5] &= ~(1 << (rule_index & 0x1f));
+                }
+            }
+            if (rule_index == RULE_LIST_END)
+                break;
+            result_bits >>= 1;
+        }
+no_more_patterns:
+
+        pattern_list_next++;
+        if (pattern_list_next >= pattern_list_last)
+            goto mainloop;
+    }
+
+pcre_match:
+    /* Not implemented yet. */
+    next_pattern++;
+
+    goto mainloop;
 }
