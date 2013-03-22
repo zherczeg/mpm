@@ -672,8 +672,8 @@ int mpm_compile(mpm_re *re, mpm_uint32 flags)
 #if defined MPM_VERBOSE && MPM_VERBOSE
     if (flags & MPM_COMPILE_VERBOSE_STATS) {
         i = sizeof(mpm_uint32) + (MAP(item_count) * sizeof(mpm_uint32) * 256);
-        printf("Statistics: patterns: %d, terms: %d, Compression save: %.2lf%% (%d bytes instead of %d bytes)\n",
-            (int)re->compile.next_id, (int)re->compile.next_term_index,
+        printf("Statistics: patterns: %d, terms: %d, states: %d, compression save: %.2lf%% (%d bytes instead of %d bytes)\n",
+            (int)re->compile.next_id, (int)re->compile.next_term_index, (int)MAP(item_count),
             (1.0 - ((double)offset / (double)i)) * 100.0, offset, (int)i);
     }
 #endif

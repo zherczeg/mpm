@@ -272,6 +272,9 @@ typedef struct mpm_rule_pattern {
   /*  This flag is ignored if MPM_VERBOSE is undefined. */
   /*! Verbose the operations of mpm_compile_rules. */
 #define MPM_COMPILE_RULES_VERBOSE       0x001
+  /*  This flag is ignored if MPM_VERBOSE is undefined. */
+  /*! Display some statistics (e.g: memory consumption) about the compiled patterns. */
+#define MPM_COMPILE_RULES_VERBOSE_STATS 0x002
 
 /*! Private representation of a regular expression set. */
 struct mpm_rule_list_internal;

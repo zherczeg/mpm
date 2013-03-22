@@ -72,6 +72,15 @@ static void test_mpm_compile(mpm_re *re, int flags)
     }
 }
 
+static void test_mpm_combine(mpm_re *destination_re, mpm_re *source_re)
+{
+    int error_code = mpm_combine(destination_re, source_re);
+    if (error_code != MPM_NO_ERROR) {
+        printf("WARNING: mpm_combine is failed: %s\n\n", mpm_error_to_string(error_code));
+        test_failed = 1;
+    }
+}
+
 static void test_mpm_exec(mpm_re *re, char *subject, int offset)
 {
     unsigned int result[1];
@@ -281,11 +290,51 @@ static void test7()
     mpm_free(re);
 }
 
-#define MAX_TESTS 7
+static void test8()
+{
+    mpm_re *re1;
+    mpm_re *re2;
+    mpm_re *re3;
+    mpm_re *re4;
+
+    printf("Test8: Testing combining patterns.\n");
+
+    re1 = test_mpm_create();
+    re2 = test_mpm_create();
+    re3 = test_mpm_create();
+    re4 = test_mpm_create();
+    if (!re1 || !re2 || !re3 ||!re4)
+        return;
+
+    test_mpm_add(re1, "String[a-z]+", MPM_ADD_CASELESS);
+    test_mpm_add(re1, "Delta.*Force", MPM_ADD_CASELESS);
+
+    test_mpm_add(re2, "abc.*def", MPM_ADD_CASELESS);
+    test_mpm_add(re2, "ID:\\d+", MPM_ADD_CASELESS);
+
+    test_mpm_add(re3, "mailto:.+@.+", MPM_ADD_CASELESS);
+    test_mpm_add(re3, "[a-z]+ing", MPM_ADD_CASELESS);
+
+    test_mpm_add(re4, "Morph(ing|eus)", MPM_ADD_CASELESS);
+
+    test_mpm_combine(re1, re2);
+    test_mpm_combine(re1, re3);
+    test_mpm_combine(re1, re4);
+
+    test_mpm_compile(re1, MPM_COMPILE_VERBOSE_STATS);
+    printf("\n");
+
+    test_mpm_exec(re1, "Delta Morpheus Force", 0);
+    test_mpm_exec(re1, "mailto:abc@def.com", 0);
+    test_mpm_exec(re1, "MY ID:234 -> selling", 0);
+    test_mpm_exec(re1, "Morphing Strings", 0);
+}
+
+#define MAX_TESTS 8
 
 static test_case tests[MAX_TESTS] = {
     test1, test2, test3, test4, test5,
-    test6, test7
+    test6, test7, test8
 };
 
 /* ----------------------------------------------------------------------- */
@@ -696,7 +745,7 @@ static void new_feature(void)
 
     mpm_clustering(loaded_items, loaded_items_size, MPM_CLUSTERING_VERBOSE);
 
-    printf("Group 0:\n  %s\n", (char *)loaded_items[i].data);
+    printf("Group 0:\n  %s\n", (char *)loaded_items[0].data);
     re = loaded_items[0].re;
     for (i = 1; i < loaded_items_size; i++) {
         if (loaded_items[i].group_id != loaded_items[i - 1].group_id) {
@@ -806,11 +855,11 @@ static void new_feature(void)
     };
     char *subject = "RULE_01 RULE_02 RULE_32 RULE_33 RULE_ RULE_35";
 
-    mpm_compile_rules(rules, sizeof(rules) / sizeof(mpm_rule_pattern), &rule_list, MPM_COMPILE_RULES_VERBOSE);
+    mpm_compile_rules(rules, sizeof(rules) / sizeof(mpm_rule_pattern), &rule_list, MPM_COMPILE_RULES_VERBOSE | MPM_COMPILE_RULES_VERBOSE_STATS);
     mpm_exec_list(rule_list, (mpm_char8 *)subject, strlen(subject), 0, result);
     mpm_rule_list_free(rule_list);
 
-    printf("Result: 0x%x 0x%x\n", result[0], result[1]);
+    printf("\nResult: 0x%x 0x%x\n", result[0], result[1]);
 
 #else
 

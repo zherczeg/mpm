@@ -243,13 +243,14 @@ int mpm_exec_list(mpm_rule_list *rule_list, mpm_char8 *subject, mpm_size length,
     pattern_list_item *next_pattern = rule_list->pattern_list;
     pattern_list_item *next_re_pattern = next_pattern;
     pattern_list_item *last_pattern = next_pattern + rule_list->pattern_list_length;
+    mpm_size rule_count = rule_list->rule_count;
     mpm_re *re_list[4];
     pattern_list_item *pattern_list[4];
     pattern_list_item **pattern_list_last;
     pattern_list_item **pattern_list_next;
     mpm_uint32 re_result[4];
     mpm_uint32 *re_result_next;
-    mpm_uint32 result_bits;
+    mpm_uint32 result_bits, current_bits, current_bit;
     mpm_re *dummy_re = mpm_dummy_re();
     mpm_uint16 *rule_indices;
     mpm_uint16 rule_index;
@@ -360,7 +361,13 @@ re_list_full:
                     if (rule_index >= PATTERN_LIST_END)
                         break;
                     /* Clear bit in the result. */
-                    result[rule_index >> 5] &= ~(1 << (rule_index & 0x1f));
+                    current_bits = result[rule_index >> 5];
+                    current_bit = (1 << (rule_index & 0x1f));
+                    if (current_bits & current_bit) {
+                        result[rule_index >> 5] = current_bits - current_bit;
+                        if (!--rule_count)
+                            return MPM_NO_ERROR;
+                    }
                 }
             }
             if (rule_index == RULE_LIST_END)

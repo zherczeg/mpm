@@ -570,7 +570,7 @@ int mpm_compile_rules(mpm_rule_pattern *rules, mpm_size no_rule_patterns, mpm_ru
         if (pattern_reference->u1.pcre) {
             /* TODO: Unsupported patterns are compiled by PCRE. */
         } else
-            pattern_hash_mask |= (mpm_compile(pattern_reference->u2.re, 0) != MPM_NO_ERROR);
+            pattern_hash_mask |= (mpm_compile(pattern_reference->u2.re, (flags & MPM_COMPILE_RULES_VERBOSE_STATS) ? MPM_COMPILE_VERBOSE_STATS : 0) != MPM_NO_ERROR);
         pattern_reference++;
     }
     /* Any error occured. */

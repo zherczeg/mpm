@@ -190,11 +190,13 @@ int mpm_rating(mpm_re *re, mpm_size index)
     return -mpm_private_rating(pattern);
 }
 
+#undef ONES_MAX_TRESHOLD
+
 /* ----------------------------------------------------------------------- */
 /*                        Clustering regular expressions.                  */
 /* ----------------------------------------------------------------------- */
 
-#undef ONES_MAX_TRESHOLD
+#define DISTANCE_TRESHOLD 20
 
 #define DISTANCE(x, y) \
     distance_matrix[(items[x].group_id & 0xffff) + (items[y].group_id & 0xffff) * distance_matrix_size]
@@ -230,7 +232,7 @@ static void split_group(int *distance_matrix, mpm_size distance_matrix_size,
             }
         }
 
-    if (no_items <= 32 && max_distance < 60)
+    if (no_items <= 32 && max_distance < DISTANCE_TRESHOLD)
         return;
 
     no_items--;
@@ -278,6 +280,7 @@ static void split_group(int *distance_matrix, mpm_size distance_matrix_size,
     split_group(distance_matrix, distance_matrix_size, items + left, no_items - left + 1, next_index);
 }
 
+#undef DISTANCE_TRESHOLD
 #undef DISTANCE
 
 int mpm_clustering(mpm_cluster_item *items, mpm_size no_items, mpm_uint32 flags)
