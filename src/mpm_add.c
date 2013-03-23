@@ -22,6 +22,7 @@
  */
 
 #include "mpm_internal.h"
+#include "mpm_pcre.h"
 #include "mpm_pcre_internal.h"
 
 /* ----------------------------------------------------------------------- */
@@ -939,7 +940,7 @@ int mpm_add(mpm_re *re, mpm_char8 *pattern, mpm_uint32 flags)
             switch (word_code[0] & OPCODE_MASK) {
             case OPCODE_SET:
                 printf("[");
-                mpm_print_char_range((mpm_uint8 *)(word_code + 1));
+                mpm_private_print_char_range((mpm_uint8 *)(word_code + 1));
                 printf("] (term:%d)\n", term_index++);
                 word_code += 1 + CHAR_SET_SIZE;
                 break;
@@ -1039,7 +1040,7 @@ int mpm_add(mpm_re *re, mpm_char8 *pattern, mpm_uint32 flags)
             } else {
                 dfa_offset = re_pattern->word_code + re_pattern->word_code[term_index - 1];
                 printf("  %5d%c: [", re->compile.next_term_index + term_index - 1, dfa_offset[CHAR_SET_SIZE] != DFA_NO_DATA ? '!' : ' ');
-                mpm_print_char_range((mpm_uint8 *)dfa_offset);
+                mpm_private_print_char_range((mpm_uint8 *)dfa_offset);
                 putc(']', stdout);
                 dfa_offset += CHAR_SET_SIZE + 1;
             }

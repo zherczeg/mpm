@@ -31,7 +31,6 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include "mpm_pcre.h"
 
 /* Verbose compilation. */
 #define MPM_VERBOSE 1
@@ -114,7 +113,8 @@ typedef struct pattern_list_item {
     union {
         struct pattern_data *pattern;
         mpm_re *re;
-        void *pcre_study;
+        void *pcre_extra;
+        mpm_uint32 flags;
     } u2;
 } pattern_list_item;
 
@@ -144,9 +144,11 @@ struct mpm_rule_list_internal {
 /* Private, shared functions. */
 int mpm_private_rating(mpm_re_pattern *pattern);
 void mpm_private_free_patterns(mpm_re_pattern *pattern);
+mpm_size mpm_private_compile_pcre(pattern_list_item *item);
+void mpm_private_free_pcre(pattern_list_item *item);
 
 #if defined MPM_VERBOSE && MPM_VERBOSE
-void mpm_print_char_range(mpm_uint8 *bitset);
+void mpm_private_print_char_range(mpm_uint8 *bitset);
 #endif
 
 #endif // mpm_internal_h

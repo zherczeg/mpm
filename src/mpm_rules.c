@@ -556,7 +556,7 @@ int mpm_compile_rules(mpm_rule_pattern *rules, mpm_size no_rule_patterns, mpm_ru
             pattern_reference->u2.re = pattern_reference->u2.pattern->re;
         } else {
             pattern_reference->u1.pcre = pattern_reference->u2.pattern->string;
-            pattern_reference->u2.pcre_study = NULL;
+            pattern_reference->u2.flags = pattern_reference->u2.pattern->flags;
         }
         pattern_reference++;
     }
@@ -567,9 +567,9 @@ int mpm_compile_rules(mpm_rule_pattern *rules, mpm_size no_rule_patterns, mpm_ru
     pattern_reference = rule_list->pattern_list;
     pattern_hash_mask = 0;
     while (pattern_list_length--) {
-        if (pattern_reference->u1.pcre) {
-            /* TODO: Unsupported patterns are compiled by PCRE. */
-        } else
+        if (pattern_reference->u1.pcre)
+            pattern_hash_mask |= mpm_private_compile_pcre(pattern_reference);
+        else
             pattern_hash_mask |= (mpm_compile(pattern_reference->u2.re, (flags & MPM_COMPILE_RULES_VERBOSE_STATS) ? MPM_COMPILE_VERBOSE_STATS : 0) != MPM_NO_ERROR);
         pattern_reference++;
     }

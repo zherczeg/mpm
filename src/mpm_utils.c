@@ -68,7 +68,9 @@ void mpm_rule_list_free(mpm_rule_list *rule_list)
     pattern_list_item *pattern_list = rule_list->pattern_list;
     pattern_list_item *pattern_list_end = pattern_list + rule_list->pattern_list_length;
     while (pattern_list < pattern_list_end) {
-        if (pattern_list->u2.re)
+        if (pattern_list->u1.pcre)
+            mpm_private_free_pcre(pattern_list);
+        else if (pattern_list->u2.re)
             mpm_free(pattern_list->u2.re);
         pattern_list++;
     }
@@ -198,7 +200,7 @@ static void print_character(int character)
 }
 
 /* Exported function. */
-void mpm_print_char_range(mpm_uint8 *bitset)
+void mpm_private_print_char_range(mpm_uint8 *bitset)
 {
     int bit = 0x01;
     int character = 0;

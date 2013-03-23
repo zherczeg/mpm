@@ -299,7 +299,7 @@ void mpm_rule_list_free(mpm_rule_list *rule_list);
  *  \param rule_list a list returned by mpm_compile_rules
  */
 
-int mpm_exec_list(mpm_rule_list *rule_list, mpm_char8 *subject, mpm_size length, mpm_size offset, mpm_uint32 *result);
+int mpm_exec_list(mpm_rule_list *rule_list, mpm_char8 *subject, mpm_size length, mpm_size offset, mpm_uint32 *result, void *pcre_stack);
 
 /*! \fn int mpm_exec_list(mpm_rule_list *rule_list, mpm_char8 *subject, mpm_size length, mpm_size offset, mpm_uint32 *result);
  *  \brief Matches the compiled rule list to the subject string.

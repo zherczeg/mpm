@@ -22,6 +22,8 @@
  */
 
 #include "mpm.h"
+#include "pcre.h"
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -814,6 +816,11 @@ static void new_feature(void)
 #elif 1
 
     mpm_rule_list *rule_list;
+#if PCRE_MAJOR >= 8 && PCRE_MINOR >= 32
+    void *stack = pcre_jit_stack_alloc(32 * 1024, 512 * 1024);
+#else
+    void *stack = NULL;
+#endif
     mpm_uint32 result[2] = { 0, 0 };
 
     mpm_rule_pattern rules[] = {
@@ -852,14 +859,20 @@ static void new_feature(void)
         { (mpm_char8 *)"RULE_33", MPM_RULE_NEW },
         { (mpm_char8 *)"RULE_34", MPM_RULE_NEW },
         { (mpm_char8 *)"RULE_35", MPM_RULE_NEW },
+        { (mpm_char8 *)"RULE_36", MPM_RULE_NEW },
+        { (mpm_char8 *)"(ab+c)\\1", MPM_RULE_NEW | MPM_ADD_CASELESS },
+        { (mpm_char8 *)"(ab+d)\\1", MPM_RULE_NEW | MPM_ADD_CASELESS },
     };
-    char *subject = "RULE_01 RULE_02 RULE_32 RULE_33 RULE_ RULE_35";
+    char *subject = "RULE_01 RULE_02 RULE_32 RULE_33 RULE_ RULE_35 AbDaBd";
 
     mpm_compile_rules(rules, sizeof(rules) / sizeof(mpm_rule_pattern), &rule_list, MPM_COMPILE_RULES_VERBOSE | MPM_COMPILE_RULES_VERBOSE_STATS);
-    mpm_exec_list(rule_list, (mpm_char8 *)subject, strlen(subject), 0, result);
+    mpm_exec_list(rule_list, (mpm_char8 *)subject, strlen(subject), 0, result, stack);
     mpm_rule_list_free(rule_list);
 
     printf("\nResult: 0x%x 0x%x\n", result[0], result[1]);
+#if PCRE_MAJOR >= 8 && PCRE_MINOR >= 32
+    pcre_jit_stack_free(stack);
+#endif
 
 #else
 

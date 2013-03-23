@@ -578,7 +578,7 @@ int mpm_compile(mpm_re *re, mpm_uint32 flags)
 #if defined MPM_VERBOSE && MPM_VERBOSE
             if (flags & MPM_COMPILE_VERBOSE) {
                 printf("  For [");
-                mpm_print_char_range((mpm_uint8 *)consumed_chars);
+                mpm_private_print_char_range((mpm_uint8 *)consumed_chars);
                 printf("] next state: %d\n", (int)id);
             }
 #endif
