@@ -289,7 +289,7 @@ mainloop:
         if (next_pattern->u1.pcre || next_pattern >= next_re_pattern) {
             rule_indices = next_pattern->rule_indices;
             while (1) {
-                rule_index = *rule_indices;
+                rule_index = *(--rule_indices);
                 if (rule_index == RULE_LIST_END)
                     break;
                 if (result[rule_index >> 5] & (1 << (rule_index & 0x1f))) {
@@ -297,7 +297,6 @@ mainloop:
                         goto pcre_match;
                     goto re_match;
                 }
-                rule_index++;
             }
         }
         next_pattern++;
@@ -317,7 +316,7 @@ re_match:
         if (!next_re_pattern->u1.pcre) {
             rule_indices = next_pattern->rule_indices;
             while (1) {
-                rule_index = *rule_indices;
+                rule_index = *(--rule_indices);
                 if (rule_index == RULE_LIST_END)
                     break;
                 if (result[rule_index >> 5] & (1 << (rule_index & 0x1f))) {
@@ -330,7 +329,6 @@ re_match:
                     }
                     break;
                 }
-                rule_index++;
             }
         }
         if (!next_pattern->u1.pcre)

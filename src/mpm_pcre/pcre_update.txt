@@ -15,7 +15,7 @@ Copy pcre.h (after pcre is compiled) as mpm_pcre.h
 
 Copy pcre_compile.c as mpm_pcre_compile.c
     Change #include "pcre_internal.h" to "mpm_pcre_internal.h"
-    Chnage pcre_compile(...) to mpm_pcre_compile(...)
+    Change pcre_compile(...) to mpm_pcre_compile(...)
     Important! All check_auto_possessive must be disabled by an #if 0
 
 Copy pcre_internal.h as mpm_pcre_internal.h

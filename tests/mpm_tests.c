@@ -346,12 +346,12 @@ static test_case tests[MAX_TESTS] = {
 #define MAX_LINE_LENGTH 4096
 #define MAX_RE_GROUPS 16
 
-/* load_pattern */
-static mpm_re *loaded_re[MAX_RE_GROUPS];
-
 /* load_pattern_list */
 static mpm_cluster_item *loaded_items;
 static int loaded_items_size;
+
+static mpm_rule_pattern *loaded_rules;
+static int loaded_rules_size;
 
 static char *input;
 static unsigned long input_length;
@@ -445,85 +445,6 @@ static char* process_fixed_string(char *source)
     return destination;
 }
 
-static void load_patterns(char* file_name,
-    int load_regexes, int load_patterns, int max_loaded, int groups)
-{
-    FILE *f = fopen(file_name, "rt");
-    char data[MAX_LINE_LENGTH];
-    char *ptr;
-    int group_id, flags, line, count_supported, count_failed;
-
-    if (!f) {
-        printf("Cannot open file: %s\n", file_name);
-        return;
-    }
-
-    if (!max_loaded)
-        max_loaded = 0x7fffffff;
-
-    if (groups <= 0)
-        groups = 1;
-    if (groups >= MAX_RE_GROUPS)
-        groups = MAX_RE_GROUPS;
-
-    for (group_id = 0; group_id < groups; group_id++) {
-        loaded_re[group_id] = test_mpm_create();
-        if (!loaded_re[group_id]) {
-            fclose(f);
-            return;
-        }
-    }
-
-    count_supported = 0;
-    count_failed = 0;
-    line = 1;
-    group_id = 0;
-
-    while (count_supported < max_loaded) {
-        if (!fgets(data, MAX_LINE_LENGTH, f))
-            break;
-
-        if (memcmp(data, "regex \"/", 8) == 0 || memcmp(data, "regex !\"/", 9) == 0) {
-            if (!load_regexes)
-                continue;
-
-            flags = process_regex(data);
-            /* An error happened. */
-            if (flags == -1)
-                continue;
-
-            ptr = data + ((data[6] == '!') ? 9 : 8);
-            if (mpm_add(loaded_re[group_id], (mpm_char8*)ptr, flags) != MPM_NO_ERROR) {
-                printf("Cannot add regex: line:%d %s\n", line, ptr);
-                count_failed++;
-            } else {
-                count_supported++;
-                group_id = (group_id + 1) % groups;
-            }
-        } else if (memcmp(data, "pattern ", 8) == 0) {
-            if (!load_patterns)
-                continue;
-
-            ptr = process_fixed_string(data);
-            if (mpm_add(loaded_re[group_id], (mpm_char8*)(data + 8), MPM_ADD_FIXED(ptr - (data + 8))) != MPM_NO_ERROR) {
-                printf("WARNING: Cannot add fixed string: line:%d %s\n", line, data + 8);
-                count_failed++;
-            } else {
-                count_supported++;
-                group_id = (group_id + 1) % groups;
-            }
-        } else
-            printf("WARNING: Unknown type: line:%d %s\n", line, data);
-        line++;
-    }
-
-    fclose(f);
-
-    printf("Statistics: Supported: %d Unsupported: %d\n", count_supported, count_failed);
-    for (group_id = 0; group_id < groups; group_id++)
-         test_mpm_compile(loaded_re[group_id], MPM_COMPILE_VERBOSE_STATS);
-}
-
 typedef struct compiled_pattern {
     struct compiled_pattern *next;
     mpm_re *re;
@@ -538,7 +459,7 @@ static void load_pattern_list(char* file_name)
     compiled_pattern *first_pattern, *last_pattern;
     compiled_pattern *current_pattern;
     mpm_re *current_re;
-    mpm_cluster_item *loaded_items_ptr;
+    mpm_cluster_item *loaded_item_ptr;
     char *ptr;
 
     if (!f) {
@@ -645,11 +566,11 @@ static void load_pattern_list(char* file_name)
     loaded_items_size = count;
 
     /* Copy the data. */
-    loaded_items_ptr = loaded_items;
+    loaded_item_ptr = loaded_items;
     while (first_pattern) {
-        loaded_items_ptr->re = first_pattern->re;
-        loaded_items_ptr->data = first_pattern->pattern;
-        loaded_items_ptr++;
+        loaded_item_ptr->re = first_pattern->re;
+        loaded_item_ptr->data = first_pattern->pattern;
+        loaded_item_ptr++;
 
         last_pattern = first_pattern->next;
         free(first_pattern);
@@ -661,6 +582,120 @@ static void load_pattern_list(char* file_name)
            "  %d (%d%%) ignored because of low rating\n  %d (%d%%) ignored because they are unsupported\n\n",
            line, count, count * 100 / line, skipped_count, skipped_count * 100 / line,
            unsupported_count, unsupported_count * 100 / line);
+}
+
+typedef struct raw_pattern {
+    struct raw_pattern *next;
+    char *pattern;
+    mpm_uint32 flags;
+} raw_pattern;
+
+static void load_rule_list(char* file_name, int new_rule_frequency)
+{
+    FILE *f = fopen(file_name, "rt");
+    char data[MAX_LINE_LENGTH];
+    int line, count, flags, len;
+    raw_pattern *first_pattern, *last_pattern;
+    raw_pattern *current_pattern;
+    mpm_rule_pattern *loaded_rule_ptr;
+    char *ptr;
+
+    if (!f) {
+        printf("Cannot open file: %s\n", file_name);
+        return;
+    }
+
+    line = 1;
+    count = 0;
+    first_pattern = NULL;
+    last_pattern = NULL;
+    while (1) {
+        if (!fgets(data, MAX_LINE_LENGTH, f))
+            break;
+
+        if (memcmp(data, "regex \"/", 8) == 0 || memcmp(data, "regex !\"/", 9) == 0) {
+            flags = process_regex(data);
+            /* An error happened. */
+            if (flags == -1) {
+                line++;
+                continue;
+            }
+
+            ptr = data + ((data[6] == '!') ? 9 : 8);
+            len = strlen(data);
+            data[len] = '/';
+            len += strlen(data + len);
+            if (data[len - 1] == '\n')
+                data[len - 1] = '\0';
+        } else if (memcmp(data, "pattern ", 8) == 0) {
+            ptr = process_fixed_string(data);
+            flags = MPM_ADD_FIXED(ptr - (data + 8));
+            ptr = data + 8;
+        } else {
+            printf("Warning: Unknown type: line:%d %s\n", line, data);
+            line++;
+            continue;
+        }
+
+        line++;
+
+        current_pattern = (raw_pattern *)malloc(sizeof(raw_pattern));
+        if (!current_pattern) {
+            printf("WARNING: out of memory\n");
+            return;
+        }
+        current_pattern->flags = flags;
+
+        len = strlen(ptr);
+        current_pattern->pattern = (char *)malloc(len + 1);
+        if (!current_pattern->pattern) {
+            printf("WARNING: out of memory\n");
+            return;
+        }
+        memcpy(current_pattern->pattern, ptr, len + 1);
+
+        current_pattern->next = NULL;
+        if (!first_pattern)
+            first_pattern = current_pattern;
+        else
+            last_pattern->next = current_pattern;
+        last_pattern = current_pattern;
+
+        count++;
+    }
+
+    fclose(f);
+
+    if (!count)
+        return;
+
+    loaded_rules = (mpm_rule_pattern *)malloc(count * sizeof(mpm_rule_pattern));
+    if (!loaded_rules) {
+        printf("WARNING: out of memory\n");
+        return;
+    }
+
+    loaded_rules_size = count;
+
+    /* Copy the data. */
+    loaded_rule_ptr = loaded_rules;
+    line = new_rule_frequency;
+    while (first_pattern) {
+        loaded_rule_ptr->pattern = (mpm_char8 *)first_pattern->pattern;
+        loaded_rule_ptr->flags = first_pattern->flags;
+        if (line >= new_rule_frequency) {
+            loaded_rule_ptr->flags |= MPM_RULE_NEW;
+            line = 1;
+        } else
+            line++;
+        loaded_rule_ptr++;
+
+        last_pattern = first_pattern->next;
+        free(first_pattern);
+        first_pattern = last_pattern;
+    }
+
+    printf("%d rules are successfully loaded\n\n", count);
 }
 
 static void load_input(char *file_name)
@@ -707,34 +742,6 @@ static void new_feature(void)
     test_mpm_exec(re, "aax", 0);
 
     mpm_free(re);
-
-#elif 0
-
-    int i;
-    clock_t time;
-    unsigned int results[8];
-
-    load_patterns("../../patterns3.txt",
-        /* load_regexes */ 1,
-        /* load_patterns */ 1,
-        /* max_loaded */ 128,
-        /* groups */ 4);
-
-    load_input("../../input.txt");
-
-    time = clock();
-    for (i = 0; i < 32; ++i)
-        mpm_exec(loaded_re[0], (mpm_char8*)input, input_length, 0, results);
-    time = clock() - time;
-    printf("Sequential run: %d ms (average)\n", (int)(time * 1000 / (CLOCKS_PER_SEC * 32)));
-
-    if (loaded_re[3]) {
-        time = clock();
-        for (i = 0; i < 32; ++i)
-            mpm_exec4(loaded_re, (mpm_char8*)input, input_length, 0, results);
-        time = clock() - time;
-        printf("Parallel run (4): %d ms (average)\n", (int)(time * 1000 / (CLOCKS_PER_SEC * 32)));
-    }
 
 #elif 0
 
@@ -813,7 +820,7 @@ static void new_feature(void)
     mpm_compile_rules(rules, sizeof(rules) / sizeof(mpm_rule_pattern), &rule_list, MPM_COMPILE_RULES_VERBOSE);
     mpm_rule_list_free(rule_list);
 
-#elif 1
+#elif 0
 
     mpm_rule_list *rule_list;
 #if PCRE_MAJOR >= 8 && PCRE_MINOR >= 32
@@ -874,9 +881,50 @@ static void new_feature(void)
     pcre_jit_stack_free(stack);
 #endif
 
+#elif 1
+
+    mpm_rule_list *rule_list;
+#if PCRE_MAJOR >= 8 && PCRE_MINOR >= 32
+    void *stack = pcre_jit_stack_alloc(32 * 1024, 512 * 1024);
+#else
+    void *stack = NULL;
+#endif
+    mpm_uint32 *result;
+    clock_t time;
+
+    load_rule_list("../../patterns.txt", 4);
+    load_input("../../input.txt");
+
+    loaded_rules_size = 400;
+
+    mpm_compile_rules(loaded_rules, loaded_rules_size, &rule_list, MPM_COMPILE_RULES_VERBOSE | MPM_COMPILE_RULES_VERBOSE_STATS);
+    if (!rule_list) {
+        printf("Cannot compile the rule list\n");
+        return;
+    }
+    result = (mpm_uint32 *)malloc(((loaded_rules_size + 31) & ~0x1f) >> 3);
+    time = clock();
+    mpm_exec_list(rule_list, (mpm_char8*)input, input_length, 0, result, stack);
+    time = clock() - time;
+    printf("Rule list run: %d ms\n", (int)(time * 1000 / (CLOCKS_PER_SEC)));
+    mpm_rule_list_free(rule_list);
+
+    mpm_compile_rules(loaded_rules, loaded_rules_size, &rule_list, MPM_COMPILE_RULES_PCRE);
+    if (!rule_list) {
+        printf("Cannot compile the pcre-only rule list\n");
+        return;
+    }
+    result = (mpm_uint32 *)malloc(((loaded_rules_size + 31) & ~0x1f) >> 3);
+    time = clock();
+    mpm_exec_list(rule_list, (mpm_char8*)input, input_length, 0, result, stack);
+    time = clock() - time;
+    printf("Rule list run: %d ms\n", (int)(time * 1000 / (CLOCKS_PER_SEC)));
+    mpm_rule_list_free(rule_list);
+
 #else
 
     /* Ignore this case. */
+    printf("No test selected!\n\n");
 
 #endif
 }

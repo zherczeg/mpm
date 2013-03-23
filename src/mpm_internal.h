@@ -36,7 +36,7 @@
 #define MPM_VERBOSE 1
 
 /* Get the length of the fixed size value. */
-#define GET_FIXED_SIZE(flags)  (((flags) >> 8) & 0xffff)
+#define GET_FIXED_SIZE(flags)  (((flags) >> 12) & 0xffff)
 
 /* Maximum number of regular expressions. */
 #define PATTERN_LIMIT          32
@@ -138,8 +138,8 @@ struct mpm_rule_list_internal {
 #define DFA_GET_BIT(set, bit)       ((set)[(bit) >> 5] & (1 << ((bit) & 0x1f)))
 
 /* Rule set flags. */
-#define RULE_LIST_END          ((mpm_uint16)-1)
-#define PATTERN_LIST_END       ((mpm_uint16)-2)
+#define RULE_LIST_END          0xffff
+#define PATTERN_LIST_END       0xfffe
 
 /* Private, shared functions. */
 int mpm_private_rating(mpm_re_pattern *pattern);

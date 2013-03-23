@@ -116,7 +116,7 @@ void mpm_free(mpm_re *re);
  *         as normal characters). Can only be combined with
  *         MPM_ADD_CASELESS flag.
  *  \param size Size of the string (maximum 64K). */
-#define MPM_ADD_FIXED(size)             (((size) & 0xffff) << 8)
+#define MPM_ADD_FIXED(size)             (((size) & 0xffff) << 12)
 
 int mpm_add(mpm_re *re, mpm_char8 *pattern, mpm_uint32 flags);
 
@@ -269,12 +269,14 @@ typedef struct mpm_rule_pattern {
     mpm_uint32 flags;      /*!< Any combination of MPM_ADD_ and MPM_RULE_ flags. */
 } mpm_rule_pattern;
 
+  /*! All non-fixed string patterns are compiled by pcre. */
+#define MPM_COMPILE_RULES_PCRE          0x001
   /*  This flag is ignored if MPM_VERBOSE is undefined. */
   /*! Verbose the operations of mpm_compile_rules. */
-#define MPM_COMPILE_RULES_VERBOSE       0x001
+#define MPM_COMPILE_RULES_VERBOSE       0x002
   /*  This flag is ignored if MPM_VERBOSE is undefined. */
   /*! Display some statistics (e.g: memory consumption) about the compiled patterns. */
-#define MPM_COMPILE_RULES_VERBOSE_STATS 0x002
+#define MPM_COMPILE_RULES_VERBOSE_STATS 0x004
 
 /*! Private representation of a regular expression set. */
 struct mpm_rule_list_internal;

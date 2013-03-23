@@ -412,6 +412,7 @@ int mpm_compile_rules(mpm_rule_pattern *rules, mpm_size no_rule_patterns, mpm_ru
     mpm_size pattern_list_length;
     mpm_rule_pattern *rules_end;
     mpm_re *re;
+    int result;
 
     if (!no_rule_patterns || !result_rule_list)
         return MPM_INVALID_ARGS;
@@ -464,7 +465,13 @@ int mpm_compile_rules(mpm_rule_pattern *rules, mpm_size no_rule_patterns, mpm_ru
         pattern_list_end->same_next = NULL;
         pattern_list_end->string = rules->pattern;
         pattern_list_end->re = NULL;
-        switch (mpm_add(re, rules->pattern, pattern_list_end->flags | MPM_ADD_TEST_RATING)) {
+
+        if (!(flags & MPM_COMPILE_RULES_PCRE) || GET_FIXED_SIZE(pattern_list_end->flags))
+            result = mpm_add(re, rules->pattern, pattern_list_end->flags | MPM_ADD_TEST_RATING);
+        else
+            result = MPM_UNSUPPORTED_PATTERN;
+
+        switch (result) {
         case MPM_NO_ERROR:
             pattern_list_end->re = re;
             pattern_list_end->length = get_pattern_size(re->compile.patterns);
@@ -497,6 +504,10 @@ int mpm_compile_rules(mpm_rule_pattern *rules, mpm_size no_rule_patterns, mpm_ru
     free(pattern_hash);
 
     rule_count++;
+    if (rule_count >= PATTERN_LIST_END) {
+        free_pattern_list(pattern_list, pattern_list_end);
+        return MPM_PATTERN_LIMIT;
+    }
 
     /* Supported patterns are passed to the clustering algorithm. */
     if (!clustering(pattern_list, pattern_list_end, flags)) {
