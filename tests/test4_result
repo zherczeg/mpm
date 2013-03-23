@@ -41,8 +41,10 @@ Processing    5: Active terms: <0>, Final states: <0>
   For [\x00-`b-\xff] next state: 0
   For [a] next state: 1
 
-Hashmap statistics: states: 6, buckets: 1024, max bucket length: 1
-Statistics: patterns: 1, terms: 5, Compression save: 86.08% (856 bytes instead of 6148 bytes)
+Statistics:
+  hashmap buckets: 1024, max bucket length: 1
+  total patterns: 1, total terms: 5, number of states: 6
+  compression save: 86.08% (856 bytes instead of 6148 bytes)
 String: 'aabc' from 0 does not match
 String: 'a.b+c' from 0 matches (0x1)
 String: 'a.b+' from 0 does not match
@@ -97,8 +99,10 @@ Processing    6: Active terms: <0>, Final states: <0>
   For [\x00-Z\-\xff] next state: 0
   For [[] next state: 1
 
-Hashmap statistics: states: 7, buckets: 1024, max bucket length: 1
-Statistics: patterns: 1, terms: 6, Compression save: 86.06% (1000 bytes instead of 7172 bytes)
+Statistics:
+  hashmap buckets: 1024, max bucket length: 1
+  total patterns: 1, total terms: 6, number of states: 7
+  compression save: 86.06% (1000 bytes instead of 7172 bytes)
 String: 'AXX' from 0 does not match
 String: '[aB]x+' from 0 matches (0x1)
 String: '[Ab]X' from 0 does not match
@@ -174,8 +178,10 @@ Processing    5: Active terms: <0-4>, Final states: <0>
   For [Cc] next state: 5
   For [Dd] next state: 2
 
-Hashmap statistics: states: 6, buckets: 1024, max bucket length: 1
-Statistics: patterns: 1, terms: 7, Compression save: 85.75% (876 bytes instead of 6148 bytes)
+Statistics:
+  hashmap buckets: 1024, max bucket length: 1
+  total patterns: 1, total terms: 7, number of states: 6
+  compression save: 85.75% (876 bytes instead of 6148 bytes)
 String: 'm' from 0 does not match
 String: 'abbc' from 0 does not match
 String: 'MaBbcCc' from 0 matches (0x1)
@@ -249,8 +255,10 @@ Processing    3: Active terms: <0,1,3>, Final states: <>
   For [n] next state: 4
   For [xy] next state: 2
 
-Hashmap statistics: states: 9, buckets: 1024, max bucket length: 1
-Statistics: patterns: 1, terms: 8, Compression save: 85.90% (1300 bytes instead of 9220 bytes)
+Statistics:
+  hashmap buckets: 1024, max bucket length: 1
+  total patterns: 1, total terms: 8, number of states: 9
+  compression save: 85.90% (1300 bytes instead of 9220 bytes)
 String: 'mxnmy' from 0 does not match
 String: 'mxxmnmyn' from 0 matches (0x1)
 String: ':%mxyxmnmyxxn%:' from 0 matches (0x1)
@@ -279,8 +287,10 @@ Processing    2: Active terms: <0,1>, Final states: <0>
   For [\x00-~\x80-\xff] next state: 0
   For [\x7f] next state: 2
 
-Hashmap statistics: states: 3, buckets: 1024, max bucket length: 1
-Statistics: patterns: 1, terms: 2, Compression save: 73.86% (804 bytes instead of 3076 bytes)
+Statistics:
+  hashmap buckets: 1024, max bucket length: 1
+  total patterns: 1, total terms: 2, number of states: 3
+  compression save: 73.86% (804 bytes instead of 3076 bytes)
 String: '€' from 0 matches (0x1)
 String: '€€' from 0 does not match
 String: '€' from 0 does not match
@@ -307,8 +317,10 @@ Processing    2: Active terms: <0,1>, Final states: <0>
   For [\x00-\x7f\x81-\xff] next state: 0
   For [\x80] next state: 2
 
-Hashmap statistics: states: 3, buckets: 1024, max bucket length: 1
-Statistics: patterns: 1, terms: 2, Compression save: 73.86% (804 bytes instead of 3076 bytes)
+Statistics:
+  hashmap buckets: 1024, max bucket length: 1
+  total patterns: 1, total terms: 2, number of states: 3
+  compression save: 73.86% (804 bytes instead of 3076 bytes)
 String: '€' from 0 does not match
 String: '€€' from 0 matches (0x1)
 String: '€' from 0 does not match
@@ -340,8 +352,10 @@ Processing    3: Active terms: <0-2>, Final states: <0>
   For [\x00-`\x91-\xff] next state: 0
   For [a-\x90] next state: 3
 
-Hashmap statistics: states: 4, buckets: 1024, max bucket length: 1
-Statistics: patterns: 1, terms: 3, Compression save: 73.85% (1072 bytes instead of 4100 bytes)
+Statistics:
+  hashmap buckets: 1024, max bucket length: 1
+  total patterns: 1, total terms: 3, number of states: 4
+  compression save: 73.85% (1072 bytes instead of 4100 bytes)
 String: '€' from 0 matches (0x1)
 String: '€€' from 0 matches (0x1)
 String: '€' from 0 does not match

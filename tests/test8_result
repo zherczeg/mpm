@@ -1,7 +1,9 @@
 Test8: Testing combining patterns.
 
-Hashmap statistics: states: 908, buckets: 1024, max bucket length: 5
-Statistics: patterns: 7, terms: 54, Compression save: 83.36% (154684 bytes instead of 929796 bytes)
+Statistics:
+  hashmap buckets: 1024, max bucket length: 5
+  total patterns: 7, total terms: 54, number of states: 908
+  compression save: 83.36% (154684 bytes instead of 929796 bytes)
 
 String: 'Delta Morpheus Force' from 0 matches (0x42)
 String: 'mailto:abc@def.com' from 0 matches (0x14)

@@ -1,0 +1,54 @@
+----------------------------------------------------------------------------
+ This file explains the steps to update the sources in the mpm_pcre library
+----------------------------------------------------------------------------
+
+Compile a pcre in place.
+    ./configure --enable-unicode-properties --enable-jit
+    make
+
+Copy pcre.h (after pcre is compiled) as mpm_pcre.h
+    Add mpm_ prefix to
+        pcre_callout_block, pcre_malloc, pcre_free,
+        pcre_stack_malloc, pcre_stack_free, pcre_callout
+        pcre_compile
+    (No need to update pcre16 and pcre32 symbols)
+
+Copy pcre_compile.c as mpm_pcre_compile.c
+    Change #include "pcre_internal.h" to "mpm_pcre_internal.h"
+    Chnage pcre_compile(...) to mpm_pcre_compile(...)
+    Important! All check_auto_possessive must be disabled by an #if 0
+
+Copy pcre_internal.h as mpm_pcre_internal.h
+    Add after:
+      #ifndef PCRE_INTERNAL_H
+      #define PCRE_INTERNAL_H
+
+      /* PCRE configuration macros. */
+      #define LINK_SIZE 2
+      #define NEWLINE -2
+      #define MAX_NAME_COUNT 10000
+      #define MAX_NAME_SIZE 32
+      #define HAVE_MEMMOVE 1
+
+    Change
+      #if defined COMPILE_PCRE8
+      #ifndef PUBL
+      #define PUBL(name) pcre_##name
+      #endif
+      #ifndef PRIV
+      #define PRIV(name) _pcre_##name
+      #endif
+      [...]
+
+      #define PUBL(name) mpm_pcre_##name
+      #define PRIV(name) mpm_pcre_##name
+
+    Change #include "pcre.h" to "mpm_pcre.h"
+    Delete #include "ucp.h"
+
+Copy pcre_chartables.c.dist as mpm_pcre_chartables.c
+Copy pcre_globals.c as mpm_pcre_globals.c
+Copy pcre_newline.c as mpm_pcre_newline.c
+Copy pcre_tables.c as mpm_pcre_tables.c
+    Change #include "pcre_internal.h" to "mpm_pcre_internal.h"
+

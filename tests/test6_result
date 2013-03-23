@@ -23,8 +23,10 @@ Processing    3: Active terms: <>, Final states: <0>
 Processing    1: Active terms: <>, Final states: <>
   For [\x00-\xff] next state: 1
 
-Hashmap statistics: states: 4, buckets: 1024, max bucket length: 1
-Statistics: patterns: 1, terms: 2, Compression save: 86.54% (552 bytes instead of 4100 bytes)
+Statistics:
+  hashmap buckets: 1024, max bucket length: 1
+  total patterns: 1, total terms: 2, number of states: 4
+  compression save: 86.54% (552 bytes instead of 4100 bytes)
 String: 'maab' from 0 does not match
 String: 'aabb' from 0 matches (0x1)
 String: 'aa' from 0 matches (0x1)
@@ -59,8 +61,10 @@ Processing    1: Active terms: <0>, Final states: <>
   For [\x00-\x09\x0b\x0c\x0e-\xff] next state: 1
   For [\x0a\x0d] next state: 0
 
-Hashmap statistics: states: 4, buckets: 1024, max bucket length: 1
-Statistics: patterns: 1, terms: 3, Compression save: 86.15% (568 bytes instead of 4100 bytes)
+Statistics:
+  hashmap buckets: 1024, max bucket length: 1
+  total patterns: 1, total terms: 3, number of states: 4
+  compression save: 86.15% (568 bytes instead of 4100 bytes)
 String: 'maab' from 0 does not match
 String: 'aabb' from 0 matches (0x1)
 String: 'aa' from 0 matches (0x1)
@@ -96,8 +100,10 @@ Processing    1: Active terms: <0>, Final states: <>
   For [\x00-\x09\x0b\x0c\x0e-\xff] next state: 1
   For [\x0a\x0d] next state: 0
 
-Hashmap statistics: states: 3, buckets: 1024, max bucket length: 1
-Statistics: patterns: 1, terms: 2, Compression save: 73.73% (808 bytes instead of 3076 bytes)
+Statistics:
+  hashmap buckets: 1024, max bucket length: 1
+  total patterns: 1, total terms: 2, number of states: 3
+  compression save: 73.73% (808 bytes instead of 3076 bytes)
 String: 'm«' from 0 does not match
 String: '
 «' from 0 matches (0x1)
@@ -131,8 +137,10 @@ Processing    1: Active terms: <0>, Final states: <>
   For [\x00-\x09\x0b\x0c\x0e-\xff] next state: 1
   For [\x0a\x0d] next state: 0
 
-Hashmap statistics: states: 4, buckets: 1024, max bucket length: 1
-Statistics: patterns: 1, terms: 2, Compression save: 73.66% (1080 bytes instead of 4100 bytes)
+Statistics:
+  hashmap buckets: 1024, max bucket length: 1
+  total patterns: 1, total terms: 2, number of states: 4
+  compression save: 73.66% (1080 bytes instead of 4100 bytes)
 String: 'm«' from 0 matches (0x1)
 String: '
 «' from 0 matches (0x1)
