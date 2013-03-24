@@ -113,30 +113,36 @@ char *mpm_error_to_string(int error_code)
     }
 }
 
-int mpm_combine(mpm_re *destination_re, mpm_re *source_re)
+mpm_size mpm_private_get_pattern_size(mpm_re_pattern *pattern)
+{
+     /* Get the total size in bytes of the DFA. */
+     mpm_uint32 *word_code = pattern->word_code;
+     word_code += pattern->word_code[pattern->term_range_size - 1];
+     word_code += CHAR_SET_SIZE + 1;
+
+     while (*word_code != DFA_NO_DATA)
+         word_code++;
+
+     word_code++;
+     return sizeof(mpm_re_pattern) + ((word_code - pattern->word_code - 1) << 2);
+}
+
+int mpm_combine(mpm_re **destination_re, mpm_re *source_re, mpm_uint32 flags)
 {
     mpm_re_pattern *pattern;
+    mpm_re_pattern *new_pattern;
+    mpm_re_pattern *prev_pattern;
+    mpm_re_pattern *first_pattern;
+    mpm_size size;
     mpm_uint32 i, id, term_index;
     mpm_uint32 *word_code;
 
-    if (!destination_re || !source_re || destination_re == source_re)
+    /* Sanity check. */
+    if (!source_re || !destination_re || destination_re[0] == source_re)
         return MPM_INVALID_ARGS;
 
-    if (!(destination_re->flags & RE_MODE_COMPILE) || !(source_re->flags & RE_MODE_COMPILE))
+    if ((destination_re[0] && !(destination_re[0]->flags & RE_MODE_COMPILE)) || !(source_re->flags & RE_MODE_COMPILE))
         return MPM_RE_ALREADY_COMPILED;
-
-    if (destination_re->compile.next_id + source_re->compile.next_id > PATTERN_LIMIT)
-        return MPM_PATTERN_LIMIT;
-
-    /* Sanity check. */
-    pattern = destination_re->compile.patterns;
-    i = 0;
-    while (pattern) {
-        pattern = pattern->next;
-        i++;
-    }
-    if (i != destination_re->compile.next_id)
-        return MPM_INTERNAL_ERROR;
 
     pattern = source_re->compile.patterns;
     i = 0;
@@ -147,16 +153,63 @@ int mpm_combine(mpm_re *destination_re, mpm_re *source_re)
     if (i != source_re->compile.next_id)
         return MPM_INTERNAL_ERROR;
 
-    if (!destination_re->compile.patterns)
-        destination_re->compile.patterns = source_re->compile.patterns;
+    if (destination_re[0]) {
+        pattern = destination_re[0]->compile.patterns;
+        i = 0;
+        while (pattern) {
+            pattern = pattern->next;
+            i++;
+        }
+        if (i != destination_re[0]->compile.next_id)
+            return MPM_INTERNAL_ERROR;
+
+        if (destination_re[0]->compile.next_id + source_re->compile.next_id > PATTERN_LIMIT)
+            return MPM_PATTERN_LIMIT;
+    }
+
+    /* Copy pattern if necessary. */
+    if (flags & MPM_COMBINE_COPY) {
+        pattern = source_re->compile.patterns;
+        first_pattern = NULL;
+        prev_pattern = NULL;
+        while (pattern) {
+            size = mpm_private_get_pattern_size(pattern);
+            new_pattern = (mpm_re_pattern *)malloc(size);
+            if (!new_pattern) {
+                mpm_private_free_patterns(first_pattern);
+                return MPM_NO_MEMORY;
+            }
+            memcpy(new_pattern, pattern, size);
+            new_pattern->next = NULL;
+            if (prev_pattern)
+                prev_pattern->next = new_pattern;
+            else
+                first_pattern = new_pattern;
+            prev_pattern = new_pattern;
+            pattern = pattern->next;
+        }
+    } else
+        first_pattern = source_re->compile.patterns;
+
+    if (!destination_re[0]) {
+        destination_re[0] = mpm_create();
+        if (!destination_re[0]) {
+            if (flags & MPM_COMBINE_COPY)
+                mpm_private_free_patterns(first_pattern);
+            return MPM_NO_MEMORY;
+        }
+    }
+
+    if (!destination_re[0]->compile.patterns)
+        destination_re[0]->compile.patterns = first_pattern;
     else {
-        pattern = destination_re->compile.patterns;
+        pattern = destination_re[0]->compile.patterns;
         while (pattern->next)
             pattern = pattern->next;
-        pattern->next = source_re->compile.patterns;
+        pattern->next = first_pattern;
 
-        id = destination_re->compile.next_id;
-        term_index = destination_re->compile.next_term_index;
+        id = destination_re[0]->compile.next_id;
+        term_index = destination_re[0]->compile.next_term_index;
         pattern = pattern->next;
         while (pattern) {
             pattern->term_range_start += term_index;
@@ -177,10 +230,11 @@ int mpm_combine(mpm_re *destination_re, mpm_re *source_re)
         }
     }
 
-    destination_re->compile.next_id += source_re->compile.next_id;
-    destination_re->compile.next_term_index += source_re->compile.next_term_index;
+    destination_re[0]->compile.next_id += source_re->compile.next_id;
+    destination_re[0]->compile.next_term_index += source_re->compile.next_term_index;
 
-    free(source_re);
+    if (!(flags & MPM_COMBINE_COPY))
+        free(source_re);
     return MPM_NO_ERROR;
 }
 

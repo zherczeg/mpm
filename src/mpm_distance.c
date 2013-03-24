@@ -23,6 +23,27 @@
 
 #include "mpm_internal.h"
 
+#define DISTANCE_TRESHOLD 20
+
+static mpm_uint8 population_count[256] = {
+    0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4,
+    1, 2, 2, 3, 2, 3, 3, 4, 2, 3, 3, 4, 3, 4, 4, 5,
+    1, 2, 2, 3, 2, 3, 3, 4, 2, 3, 3, 4, 3, 4, 4, 5,
+    2, 3, 3, 4, 3, 4, 4, 5, 3, 4, 4, 5, 4, 5, 5, 6,
+    1, 2, 2, 3, 2, 3, 3, 4, 2, 3, 3, 4, 3, 4, 4, 5,
+    2, 3, 3, 4, 3, 4, 4, 5, 3, 4, 4, 5, 4, 5, 5, 6,
+    2, 3, 3, 4, 3, 4, 4, 5, 3, 4, 4, 5, 4, 5, 5, 6,
+    3, 4, 4, 5, 4, 5, 5, 6, 4, 5, 5, 6, 5, 6, 6, 7,
+    1, 2, 2, 3, 2, 3, 3, 4, 2, 3, 3, 4, 3, 4, 4, 5,
+    2, 3, 3, 4, 3, 4, 4, 5, 3, 4, 4, 5, 4, 5, 5, 6,
+    2, 3, 3, 4, 3, 4, 4, 5, 3, 4, 4, 5, 4, 5, 5, 6,
+    3, 4, 4, 5, 4, 5, 5, 6, 4, 5, 5, 6, 5, 6, 6, 7,
+    2, 3, 3, 4, 3, 4, 4, 5, 3, 4, 4, 5, 4, 5, 5, 6,
+    3, 4, 4, 5, 4, 5, 5, 6, 4, 5, 5, 6, 5, 6, 6, 7,
+    3, 4, 4, 5, 4, 5, 5, 6, 4, 5, 5, 6, 5, 6, 6, 7,
+    4, 5, 5, 6, 5, 6, 6, 7, 5, 6, 6, 7, 6, 7, 7, 8,
+};
+
 /* ----------------------------------------------------------------------- */
 /*                        Calculate Levenshtein distance.                  */
 /* ----------------------------------------------------------------------- */
@@ -32,7 +53,9 @@ int mpm_distance(mpm_re *re1, mpm_size index1, mpm_re *re2, mpm_size index2)
     mpm_re_pattern *pattern1;
     mpm_re_pattern *pattern2;
     mpm_uint32 *word_code1, *word_code2;
-    mpm_uint32 i, j, size1, size2;
+    mpm_uint32 *word_code_compare1, *word_code_compare2;
+    mpm_uint32 i, j, size1, size2, start1, start2;
+    mpm_uint32 prefix_size;
     int32_t a, b;
     int32_t *base, *other, *previous, *current;
 
@@ -62,11 +85,50 @@ int mpm_distance(mpm_re *re1, mpm_size index1, mpm_re *re2, mpm_size index2)
         word_code2 = pattern2->word_code;
         size1 = pattern1->term_range_size + 1;
         size2 = pattern2->term_range_size + 1;
+        start1 = pattern1->term_range_start;
+        start2 = pattern2->term_range_start;
     } else {
         word_code1 = pattern2->word_code;
         word_code2 = pattern1->word_code;
         size1 = pattern2->term_range_size + 1;
         size2 = pattern1->term_range_size + 1;
+        start1 = pattern2->term_range_start;
+        start2 = pattern1->term_range_start;
+    }
+
+    prefix_size = 0;
+    for (i = 0; i < size1; ++i) {
+        if (i > 0) {
+            word_code_compare1 = word_code1 + word_code1[i - 1];
+            word_code_compare2 = word_code2 + word_code2[i - 1];
+            if (memcmp(word_code_compare1, word_code_compare2, (CHAR_SET_SIZE * sizeof(mpm_uint32))) != 0)
+                break;
+            word_code_compare1 += CHAR_SET_SIZE;
+            word_code_compare2 += CHAR_SET_SIZE;
+        } else {
+            word_code_compare1 = word_code1 + size1 - 1;
+            word_code_compare2 = word_code2 + size2 - 1;
+        }
+
+        if (*word_code_compare1 == DFA_NO_DATA) {
+            if (*word_code_compare2 != DFA_NO_DATA)
+                break;
+        } else if (*word_code_compare2 == DFA_NO_DATA)
+            break;
+
+        while (1) {
+            ++word_code_compare1;
+            ++word_code_compare2;
+            if (*word_code_compare1 == DFA_NO_DATA || *word_code_compare2 == DFA_NO_DATA)
+                break;
+            if (*word_code_compare1 - start1 != *word_code_compare2 - start2)
+                break;
+        }
+
+        if (*word_code_compare1 != DFA_NO_DATA || *word_code_compare2 != DFA_NO_DATA)
+            break;
+        if (i != 0)
+            prefix_size++;
     }
 
     base = (int32_t *)malloc(size1 * 2 * sizeof(int32_t));
@@ -101,9 +163,9 @@ int mpm_distance(mpm_re *re1, mpm_size index1, mpm_re *re2, mpm_size index2)
         }
     }
 
-    a = current[size1 - 1];
+    a = -(int32_t)current[size1 - 1] + (int32_t)(prefix_size / 3);
     free(base);
-    return -a;
+    return a < 0 ? a : -1;
 }
 
 /* ----------------------------------------------------------------------- */
@@ -114,8 +176,9 @@ int mpm_distance(mpm_re *re1, mpm_size index1, mpm_re *re2, mpm_size index2)
 
 int mpm_private_rating(mpm_re_pattern *pattern)
 {
-    mpm_uint32 *word_code, *bit_set, *bit_set_end;
-    mpm_uint32 i, size, ones, value;
+    mpm_uint32 *word_code;
+    mpm_uint8 *bit_set, *bit_set_end;
+    mpm_uint32 i, size, ones;
     int rate, max, char_types[3];
 
     word_code = pattern->word_code;
@@ -125,23 +188,12 @@ int mpm_private_rating(mpm_re_pattern *pattern)
     char_types[2] = 0;
 
     for (i = 0; i < size; ++i) {
-        bit_set = word_code + word_code[i];
-        bit_set_end = bit_set + CHAR_SET_SIZE;
+        bit_set = (mpm_uint8 *)(word_code + word_code[i]);
+        bit_set_end = bit_set + (CHAR_SET_SIZE * sizeof(mpm_uint32));
         ones = 0;
-        while (bit_set < bit_set_end && ones <= ONES_MAX_TRESHOLD) {
-            value = *bit_set++;
-            if (value) {
-                if (value == 0xffffffff)
-                    ones += 32;
-                else {
-                    while (value) {
-                        if (value & 0x1)
-                            ones++;
-                        value >>= 1;
-                    }
-                }
-            }
-        }
+        while (bit_set < bit_set_end && ones <= ONES_MAX_TRESHOLD)
+            ones += population_count[*bit_set++];
+
         if (ones > ONES_MAX_TRESHOLD)
             char_types[2]++;
         else if (ones > 4)
@@ -196,22 +248,21 @@ int mpm_rating(mpm_re *re, mpm_size index)
 /*                        Clustering regular expressions.                  */
 /* ----------------------------------------------------------------------- */
 
-#define DISTANCE_TRESHOLD 20
-
 #define DISTANCE(x, y) \
     distance_matrix[(items[x].group_id & 0xffff) + (items[y].group_id & 0xffff) * distance_matrix_size]
 
-static void split_group(int *distance_matrix, mpm_size distance_matrix_size,
+static int split_group(int *distance_matrix, mpm_size distance_matrix_size,
     mpm_cluster_item *items, mpm_size no_items, mpm_uint32 *next_index)
 {
     mpm_size x, y;
     mpm_size left, right;
-    int distance, max_distance;
+    int distance, max_distance, return_value;
     mpm_cluster_item item;
     mpm_uint32 group_id, other_group_id;
+    mpm_re *re;
 
     if (no_items <= 1)
-        return;
+        return MPM_NO_ERROR;
 
     group_id = items[0].group_id & ~0xffff;
     *next_index += 0x10000;
@@ -232,8 +283,23 @@ static void split_group(int *distance_matrix, mpm_size distance_matrix_size,
             }
         }
 
-    if (no_items <= 32 && max_distance < DISTANCE_TRESHOLD)
-        return;
+    if (no_items <= 32 && max_distance < DISTANCE_TRESHOLD) {
+        if (no_items <= 2)
+            return MPM_NO_ERROR;
+
+        re = NULL;
+        for (x = 0; x < no_items; x++) {
+            if ((return_value = mpm_combine(&re, items[x].re, MPM_COMBINE_COPY)) != MPM_NO_ERROR) {
+                if (re)
+                    mpm_free(re);
+                return return_value;
+            }
+        }
+        return_value = mpm_compile(re, 0);
+        mpm_free(re);
+        if (return_value != MPM_STATE_MACHINE_LIMIT)
+            return MPM_NO_ERROR;
+    }
 
     no_items--;
     if (left != 0) {
@@ -250,7 +316,7 @@ static void split_group(int *distance_matrix, mpm_size distance_matrix_size,
     items[no_items].group_id = (items[no_items].group_id & 0xffff) | other_group_id;
 
     if (no_items <= 1)
-        return;
+        return MPM_NO_ERROR;
 
     left = 1;
     right = no_items - 1;
@@ -276,8 +342,9 @@ static void split_group(int *distance_matrix, mpm_size distance_matrix_size,
     /* printf("Divide: %d Left: %d Right: %d\n", (int)no_items + 1, (int)left, (int)(no_items - left + 1)); */
 
     /* Recursive implementation. */
-    split_group(distance_matrix, distance_matrix_size, items, left, next_index);
-    split_group(distance_matrix, distance_matrix_size, items + left, no_items - left + 1, next_index);
+    if ((return_value = split_group(distance_matrix, distance_matrix_size, items, left, next_index)) != MPM_NO_ERROR)
+        return return_value;
+    return split_group(distance_matrix, distance_matrix_size, items + left, no_items - left + 1, next_index);
 }
 
 #undef DISTANCE_TRESHOLD
@@ -289,7 +356,7 @@ int mpm_clustering(mpm_cluster_item *items, mpm_size no_items, mpm_uint32 flags)
     mpm_uint32 next_index, prev_group;
     int *distance_matrix;
     int *rate_vector;
-    int distance;
+    int distance, return_value;
 #if defined MPM_VERBOSE && MPM_VERBOSE
     mpm_size count = 0, max = 0;
 #endif
@@ -365,7 +432,10 @@ int mpm_clustering(mpm_cluster_item *items, mpm_size no_items, mpm_uint32 flags)
 #endif
 
     next_index = 0;
-    split_group(distance_matrix, no_items, items, no_items, &next_index);
+    if ((return_value = split_group(distance_matrix, no_items, items, no_items, &next_index))) {
+        free(distance_matrix);
+        return return_value;
+    }
 
     next_index = 0;
     prev_group = items[0].group_id & ~0xffff;

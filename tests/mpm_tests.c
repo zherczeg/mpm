@@ -74,9 +74,9 @@ static void test_mpm_compile(mpm_re *re, int flags)
     }
 }
 
-static void test_mpm_combine(mpm_re *destination_re, mpm_re *source_re)
+static void test_mpm_combine(mpm_re **destination_re, mpm_re *source_re, mpm_uint32 flags)
 {
-    int error_code = mpm_combine(destination_re, source_re);
+    int error_code = mpm_combine(destination_re, source_re, flags);
     if (error_code != MPM_NO_ERROR) {
         printf("WARNING: mpm_combine is failed: %s\n\n", mpm_error_to_string(error_code));
         test_failed = 1;
@@ -319,9 +319,9 @@ static void test8()
 
     test_mpm_add(re4, "Morph(ing|eus)", MPM_ADD_CASELESS);
 
-    test_mpm_combine(re1, re2);
-    test_mpm_combine(re1, re3);
-    test_mpm_combine(re1, re4);
+    test_mpm_combine(&re1, re2, 0);
+    test_mpm_combine(&re1, re3, 0);
+    test_mpm_combine(&re1, re4, 0);
 
     test_mpm_compile(re1, MPM_COMPILE_VERBOSE_STATS);
     printf("\n");
@@ -763,7 +763,7 @@ static void new_feature(void)
             printf("\nGroup: %d\n", loaded_items[i].group_id);
             re = loaded_items[i].re;
         } else {
-            if (mpm_combine(re, loaded_items[i].re) != MPM_NO_ERROR)
+            if (mpm_combine(&re, loaded_items[i].re, 0) != MPM_NO_ERROR)
                 printf("WARNING: mpm_combine failed\n");
         }
 
@@ -892,10 +892,9 @@ static void new_feature(void)
     mpm_uint32 *result;
     clock_t time;
 
-    load_rule_list("../../patterns.txt", 4);
+    /* Killer pattern: /.+DELETE.+FROM/Ui"/ */
+    load_rule_list("../../patterns3.txt", 4);
     load_input("../../input.txt");
-
-    loaded_rules_size = 400;
 
     mpm_compile_rules(loaded_rules, loaded_rules_size, &rule_list, MPM_COMPILE_RULES_VERBOSE | MPM_COMPILE_RULES_VERBOSE_STATS);
     if (!rule_list) {
@@ -906,7 +905,7 @@ static void new_feature(void)
     time = clock();
     mpm_exec_list(rule_list, (mpm_char8*)input, input_length, 0, result, stack);
     time = clock() - time;
-    printf("Rule list run: %d ms\n", (int)(time * 1000 / (CLOCKS_PER_SEC)));
+    printf("MPM run: %d ms\n", (int)(time * 1000 / (CLOCKS_PER_SEC)));
     mpm_rule_list_free(rule_list);
 
     mpm_compile_rules(loaded_rules, loaded_rules_size, &rule_list, MPM_COMPILE_RULES_PCRE);
@@ -918,7 +917,7 @@ static void new_feature(void)
     time = clock();
     mpm_exec_list(rule_list, (mpm_char8*)input, input_length, 0, result, stack);
     time = clock() - time;
-    printf("Rule list run: %d ms\n", (int)(time * 1000 / (CLOCKS_PER_SEC)));
+    printf("PCRE run: %d ms\n", (int)(time * 1000 / (CLOCKS_PER_SEC)));
     mpm_rule_list_free(rule_list);
 
 #else

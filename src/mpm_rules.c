@@ -54,20 +54,6 @@ static void free_pattern_list(pattern_data *pattern_list, pattern_data *pattern_
     free(pattern_list);
 }
 
-static mpm_size get_pattern_size(mpm_re_pattern *pattern)
-{
-     /* Get the total size in bytes of the DFA. */
-     mpm_uint32 *word_code = pattern->word_code;
-     word_code += pattern->word_code[pattern->term_range_size - 1];
-     word_code += CHAR_SET_SIZE + 1;
-
-     while (*word_code != DFA_NO_DATA)
-         word_code++;
-
-     word_code++;
-     return (word_code - pattern->word_code) << 2;
-}
-
 static mpm_uint32 compute_hash(mpm_uint8 *data_ptr, mpm_size size)
 {
     mpm_uint32 hash = 0xaaaaaaaa;
@@ -179,7 +165,7 @@ static int clustering(pattern_data *pattern_list, pattern_data *pattern_list_end
             if (population_count < 3) {
                 /* Joining very small groups. */
                 if (small_pattern_re) {
-                    if (mpm_combine(small_pattern_re, last_head_pattern->re) != MPM_NO_ERROR) {
+                    if (mpm_combine(&small_pattern_re, last_head_pattern->re, 0) != MPM_NO_ERROR) {
                         free(cluster_items);
                         return 0;
                     }
@@ -200,7 +186,7 @@ static int clustering(pattern_data *pattern_list, pattern_data *pattern_list_end
             population_count = 1;
             last_head_pattern = pattern;
         } else {
-            if (mpm_combine(re, cluster_item->re) != MPM_NO_ERROR) {
+            if (mpm_combine(&re, cluster_item->re, 0) != MPM_NO_ERROR) {
                 free(cluster_items);
                 return 0;
             }
@@ -215,7 +201,7 @@ static int clustering(pattern_data *pattern_list, pattern_data *pattern_list_end
 
     if (population_count < 3 && small_pattern_re) {
         /* Joining very small groups. */
-        if (mpm_combine(small_pattern_re, last_head_pattern->re) != MPM_NO_ERROR) {
+        if (mpm_combine(&small_pattern_re, last_head_pattern->re, 0) != MPM_NO_ERROR) {
             free(cluster_items);
             return 0;
         }
@@ -474,7 +460,7 @@ int mpm_compile_rules(mpm_rule_pattern *rules, mpm_size no_rule_patterns, mpm_ru
         switch (result) {
         case MPM_NO_ERROR:
             pattern_list_end->re = re;
-            pattern_list_end->length = get_pattern_size(re->compile.patterns);
+            pattern_list_end->length = mpm_private_get_pattern_size(re->compile.patterns);
             pattern_list_end->hash = compute_hash((mpm_uint8 *)re->compile.patterns->word_code, pattern_list_end->length);
             re = NULL;
             break;

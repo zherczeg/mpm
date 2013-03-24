@@ -186,17 +186,21 @@ mpm_re * mpm_dummy_re(void);
  *         Can be passed as a valid re for mpm_exec or mpm_exec4.
  */
 
-int mpm_combine(mpm_re *destination_re, mpm_re *source_re);
+/*! Copy source instead of merge it. The source will not be deleted. */
+#define MPM_COMBINE_COPY                0x001
+
+int mpm_combine(mpm_re **destination_re, mpm_re *source_re, mpm_uint32 flags);
 
 /*! \fn int mpm_combine(mpm_re *destination_re, mpm_re *source_re)
  *  \brief The patterns stored by source_re are added at the end of
- *         destination_re. If successful, source_re is freed. Otherwise
+ *         *destination_re. If successful, source_re is freed. Otherwise
  *         both set of regular expressions are left unchanged.
- *  \param destination_re set of regular expressions created by mpm_create
- *                        (the set must not be compiled by mpm_compile).
+ *  \param destination_re *destination_re points to a set of regular expressions
+ *                        created by mpm_create (the set must not be compiled by
+ *                        mpm_compile) or NULL to create a new one.
  *  \param source_re set of regular expressions created by mpm_create
  *                   (the set must not be compiled by mpm_compile).
- *
+ *  \param flags flags started by MPM_COMBINE_ prefix.
  *  \return MPM_NO_ERROR on success.
  */
 
