@@ -72,6 +72,17 @@
 
 /* A DFA representation of a pattern */
 typedef struct mpm_re_pattern {
+    /*
+      Pattern format:
+      The first term_range_size words contain the offset of each state.
+      Each state has
+        - Character bitset [8 words = 256 bits]
+        - End state: an id, if the end state can be reached, or DFA_NO_DATA otherwise
+        - DFA_NO_DATA terminated list of the reachable state indexes (not offsets!).
+
+      The start state has offset term_range_size * word_code, and has no char bitset.
+      Otherwise its format is the same as others.
+    */
     struct mpm_re_pattern *next;
     mpm_uint32 flags;
     mpm_uint32 term_range_start;
@@ -94,6 +105,13 @@ struct mpm_re_internal {
             mpm_uint32 next_term_index;
         } compile;
         struct {
+            /*
+              starting state_map: compiled_pattern + 4 + optional new or non-new line offset
+              Each state has:
+                  - Reached end state bitset (at state_map - 4)
+                  - 128 or 256 relative offsets (at state_map)
+                  - a signed, 32 bit offset for each relative state (at state_map + 128 or 256)
+            */
             mpm_uint8* compiled_pattern;
             mpm_uint32 non_newline_offset;
             mpm_uint32 newline_offset;

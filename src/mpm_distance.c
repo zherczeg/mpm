@@ -295,7 +295,7 @@ static int split_group(int *distance_matrix, mpm_size distance_matrix_size,
                 return return_value;
             }
         }
-        return_value = mpm_compile(re, 0);
+        return_value = mpm_compile(re, MPM_COMPILE_SMALL_MACHINE);
         mpm_free(re);
         if (return_value != MPM_STATE_MACHINE_LIMIT)
             return MPM_NO_ERROR;

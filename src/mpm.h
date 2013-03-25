@@ -130,12 +130,14 @@ int mpm_add(mpm_re *re, mpm_char8 *pattern, mpm_uint32 flags);
 
 /* Compile the pattern. */
 
+  /*  The maximum number of states is reduced to 1/4 . */
+#define MPM_COMPILE_SMALL_MACHINE       0x001
   /*  This flag is ignored if MPM_VERBOSE is undefined. */
   /*! Verbose the operations of mpm_compile. */
-#define MPM_COMPILE_VERBOSE             0x001
+#define MPM_COMPILE_VERBOSE             0x002
   /*  This flag is ignored if MPM_VERBOSE is undefined. */
   /*! Display some statistics (e.g: memory consumption) about the compiled pattern. */
-#define MPM_COMPILE_VERBOSE_STATS       0x002
+#define MPM_COMPILE_VERBOSE_STATS       0x004
 
 int mpm_compile(mpm_re *re, mpm_uint32 flags);
 

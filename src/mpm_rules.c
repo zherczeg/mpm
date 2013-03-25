@@ -118,10 +118,6 @@ static int clustering(pattern_data *pattern_list, pattern_data *pattern_list_end
     mpm_re *re;
     mpm_size count = 0;
     mpm_uint32 group_id;
-    mpm_uint32 population_count;
-    mpm_re *small_pattern_re;
-    pattern_data *small_pattern_last;
-    mpm_uint32 small_population_count;
 
     pattern = pattern_list;
     while (pattern < pattern_list_end) {
@@ -156,34 +152,12 @@ static int clustering(pattern_data *pattern_list, pattern_data *pattern_list_end
 
     cluster_item = cluster_items;
     group_id = (mpm_uint32)-1;
-    small_pattern_re = NULL;
-    population_count = 32;
 
     do {
         pattern = (pattern_data *)cluster_item->data;
         if (cluster_item->group_id != group_id) {
-            if (population_count < 3) {
-                /* Joining very small groups. */
-                if (small_pattern_re) {
-                    if (mpm_combine(&small_pattern_re, last_head_pattern->re, 0) != MPM_NO_ERROR) {
-                        free(cluster_items);
-                        return 0;
-                    }
-                    small_pattern_last->next = last_head_pattern;
-                    last_head_pattern->flags |= SUB_PATTERN;
-                    last_head_pattern->re = NULL;
-                    small_population_count += population_count;
-                    if (small_population_count >= 3)
-                        small_pattern_re = NULL;
-                } else {
-                    small_pattern_re = last_head_pattern->re;
-                    small_population_count = population_count;
-                }
-                small_pattern_last = last_pattern;
-            }
             group_id = cluster_item->group_id;
             re = cluster_item->re;
-            population_count = 1;
             last_head_pattern = pattern;
         } else {
             if (mpm_combine(&re, cluster_item->re, 0) != MPM_NO_ERROR) {
@@ -193,23 +167,10 @@ static int clustering(pattern_data *pattern_list, pattern_data *pattern_list_end
             last_pattern->next = (pattern_data *)cluster_item->data;
             pattern->flags |= SUB_PATTERN;
             pattern->re = NULL;
-            population_count++;
         }
         last_pattern = pattern;
         cluster_item++;
     } while (--count > 0);
-
-    if (population_count < 3 && small_pattern_re) {
-        /* Joining very small groups. */
-        if (mpm_combine(&small_pattern_re, last_head_pattern->re, 0) != MPM_NO_ERROR) {
-            free(cluster_items);
-            return 0;
-        }
-
-        small_pattern_last->next = last_head_pattern;
-        last_head_pattern->flags |= SUB_PATTERN;
-        last_head_pattern->re = NULL;
-    }
 
     free(cluster_items);
     return 1;
@@ -460,7 +421,7 @@ int mpm_compile_rules(mpm_rule_pattern *rules, mpm_size no_rule_patterns, mpm_ru
         switch (result) {
         case MPM_NO_ERROR:
             pattern_list_end->re = re;
-            pattern_list_end->length = mpm_private_get_pattern_size(re->compile.patterns);
+            pattern_list_end->length = mpm_private_get_pattern_size(re->compile.patterns) - sizeof(mpm_re_pattern) + sizeof(mpm_uint32);
             pattern_list_end->hash = compute_hash((mpm_uint8 *)re->compile.patterns->word_code, pattern_list_end->length);
             re = NULL;
             break;

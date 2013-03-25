@@ -895,13 +895,13 @@ static void new_feature(void)
     /* Killer pattern: /.+DELETE.+FROM/Ui"/ */
     load_rule_list("../../patterns3.txt", 4);
     load_input("../../input.txt");
+    result = (mpm_uint32 *)malloc(((loaded_rules_size + 31) & ~0x1f) >> 3);
 
     mpm_compile_rules(loaded_rules, loaded_rules_size, &rule_list, MPM_COMPILE_RULES_VERBOSE | MPM_COMPILE_RULES_VERBOSE_STATS);
     if (!rule_list) {
         printf("Cannot compile the rule list\n");
         return;
     }
-    result = (mpm_uint32 *)malloc(((loaded_rules_size + 31) & ~0x1f) >> 3);
     time = clock();
     mpm_exec_list(rule_list, (mpm_char8*)input, input_length, 0, result, stack);
     time = clock() - time;
@@ -913,12 +913,16 @@ static void new_feature(void)
         printf("Cannot compile the pcre-only rule list\n");
         return;
     }
-    result = (mpm_uint32 *)malloc(((loaded_rules_size + 31) & ~0x1f) >> 3);
     time = clock();
     mpm_exec_list(rule_list, (mpm_char8*)input, input_length, 0, result, stack);
     time = clock() - time;
     printf("PCRE run: %d ms\n", (int)(time * 1000 / (CLOCKS_PER_SEC)));
     mpm_rule_list_free(rule_list);
+
+    free(result);
+#if PCRE_MAJOR >= 8 && PCRE_MINOR >= 32
+    pcre_jit_stack_free(stack);
+#endif
 
 #else
 
