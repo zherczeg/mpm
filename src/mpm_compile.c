@@ -345,7 +345,7 @@ static void hashmap_stats(mpm_hashmap *map)
 /* Accessing members of the hash map. */
 #define MAP(id) (map_data.id)
 
-int mpm_compile(mpm_re *re, mpm_uint32 flags)
+int mpm_compile(mpm_re *re, mpm_size *consumed_memory, mpm_uint32 flags)
 {
     mpm_hashmap map_data;
     mpm_hashmap *map = &map_data;
@@ -677,6 +677,9 @@ int mpm_compile(mpm_re *re, mpm_uint32 flags)
             (1.0 - ((double)offset / (double)i)) * 100.0, offset, (int)i);
     }
 #endif
+
+    if (consumed_memory)
+        *consumed_memory = sizeof(mpm_re) + offset;
 
     compiled_pattern = (mpm_uint8 *)malloc(offset);
     if (!compiled_pattern) {

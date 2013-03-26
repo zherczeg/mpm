@@ -65,9 +65,9 @@ static void test_mpm_add_fail(mpm_re *re, char *pattern, int flags, int error)
     printf("Expected error: '%s' occured\n\n", mpm_error_to_string(error));
 }
 
-static void test_mpm_compile(mpm_re *re, int flags)
+static void test_mpm_compile(mpm_re *re, mpm_size *consumed_memory, int flags)
 {
-    int error_code = mpm_compile(re, flags);
+    int error_code = mpm_compile(re, consumed_memory, flags);
     if (error_code != MPM_NO_ERROR) {
         printf("WARNING: mpm_compile is failed: %s\n\n", mpm_error_to_string(error_code));
         test_failed = 1;
@@ -88,7 +88,7 @@ static void test_mpm_exec(mpm_re *re, char *subject, int offset)
     unsigned int result[1];
     int error_code = mpm_exec(re, (mpm_char8*)subject, strlen(subject), offset, result);
     if (error_code != MPM_NO_ERROR) {
-        printf("WARNING: mpm_compile is failed: %s\n\n", mpm_error_to_string(error_code));
+        printf("WARNING: mpm_exec is failed: %s\n\n", mpm_error_to_string(error_code));
         test_failed = 1;
         return;
     }
@@ -100,7 +100,7 @@ static void test_mpm_exec(mpm_re *re, char *subject, int offset)
 
 static void test_multiple_match(mpm_re *re, int compile_flags, char **subject)
 {
-    test_mpm_compile(re, compile_flags);
+    test_mpm_compile(re, NULL, compile_flags);
     while (subject[0]) {
         test_mpm_exec(re, subject[0], 0);
         subject++;
@@ -187,7 +187,7 @@ static void test3()
 
     test_mpm_add(re, "\\x3Cobject[^\\x3E]+?data\\s*\\x3D\\s*\\x22\\x22", MPM_ADD_VERBOSE);
     test_mpm_add(re, "^[^\\s]{256}", MPM_ADD_VERBOSE);
-    test_mpm_compile(re, MPM_COMPILE_VERBOSE | MPM_COMPILE_VERBOSE_STATS);
+    test_mpm_compile(re, NULL, MPM_COMPILE_VERBOSE | MPM_COMPILE_VERBOSE_STATS);
 
     mpm_free(re);
 }
@@ -259,7 +259,7 @@ static void test7()
     test_mpm_add(re, "^a", MPM_ADD_MULTILINE);
     test_mpm_add(re, "^a", 0);
     test_mpm_add(re, "\\na", 0);
-    test_mpm_compile(re, 0);
+    test_mpm_compile(re, NULL, 0);
     test_mpm_exec(re, "a\na", 0);
     test_mpm_exec(re, "a\na", 2);
     test_mpm_exec(re, "a\na\na", 2);
@@ -272,7 +272,7 @@ static void test7()
     printf("\nTest2:\n");
     test_mpm_add(re, "^a", 0);
     test_mpm_add(re, "\\na", 0);
-    test_mpm_compile(re, 0);
+    test_mpm_compile(re, NULL, 0);
     test_mpm_exec(re, "a\na", 0);
     test_mpm_exec(re, "a\na\n", 2);
     test_mpm_exec(re, "a\na\na", 2);
@@ -285,7 +285,7 @@ static void test7()
     printf("\nTest3:\n");
     test_mpm_add(re, "^a", MPM_ADD_MULTILINE);
     test_mpm_add(re, "\\na", 0);
-    test_mpm_compile(re, 0);
+    test_mpm_compile(re, NULL, 0);
     test_mpm_exec(re, "a\na", 0);
     test_mpm_exec(re, "a\na\nb", 2);
     test_mpm_exec(re, "a\na\na", 2);
@@ -323,7 +323,7 @@ static void test8()
     test_mpm_combine(&re1, re3, 0);
     test_mpm_combine(&re1, re4, 0);
 
-    test_mpm_compile(re1, MPM_COMPILE_VERBOSE_STATS);
+    test_mpm_compile(re1, NULL, MPM_COMPILE_VERBOSE_STATS);
     printf("\n");
 
     test_mpm_exec(re1, "Delta Morpheus Force", 0);
@@ -736,7 +736,7 @@ static void new_feature(void)
     test_mpm_add(re, "ma?", MPM_ADD_VERBOSE);
     test_mpm_add(re, "aa", MPM_ADD_VERBOSE | MPM_ADD_FIXED(2));
     printf("Distance: %d\n", mpm_distance(re, 0, re, 1));
-    test_mpm_compile(re, MPM_COMPILE_VERBOSE | MPM_COMPILE_VERBOSE_STATS);
+    test_mpm_compile(re, NULL, MPM_COMPILE_VERBOSE | MPM_COMPILE_VERBOSE_STATS);
     test_mpm_exec(re, "mmaa bb", 0);
     test_mpm_exec(re, "aa", 0);
     test_mpm_exec(re, "aax", 0);
@@ -758,7 +758,7 @@ static void new_feature(void)
     re = loaded_items[0].re;
     for (i = 1; i < loaded_items_size; i++) {
         if (loaded_items[i].group_id != loaded_items[i - 1].group_id) {
-            if (mpm_compile(re, MPM_COMPILE_VERBOSE_STATS) != MPM_NO_ERROR)
+            if (mpm_compile(re, NULL, MPM_COMPILE_VERBOSE_STATS) != MPM_NO_ERROR)
                 printf("WARNING: mpm_compile failed\n");
             printf("\nGroup: %d\n", loaded_items[i].group_id);
             re = loaded_items[i].re;
@@ -770,7 +770,7 @@ static void new_feature(void)
         printf("  %s\n", (char *)loaded_items[i].data);
     }
 
-    mpm_compile(re, MPM_COMPILE_VERBOSE_STATS);
+    mpm_compile(re, NULL, MPM_COMPILE_VERBOSE_STATS);
 
 #elif 0
 
@@ -817,7 +817,7 @@ static void new_feature(void)
         { (mpm_char8 *)"Rule#8", MPM_ADD_FIXED(6) },
     };
 
-    mpm_compile_rules(rules, sizeof(rules) / sizeof(mpm_rule_pattern), &rule_list, MPM_COMPILE_RULES_VERBOSE);
+    mpm_compile_rules(rules, sizeof(rules) / sizeof(mpm_rule_pattern), &rule_list, NULL, MPM_COMPILE_RULES_VERBOSE);
     mpm_rule_list_free(rule_list);
 
 #elif 0
@@ -872,7 +872,7 @@ static void new_feature(void)
     };
     char *subject = "RULE_01 RULE_02 RULE_32 RULE_33 RULE_ RULE_35 AbDaBd";
 
-    mpm_compile_rules(rules, sizeof(rules) / sizeof(mpm_rule_pattern), &rule_list, MPM_COMPILE_RULES_VERBOSE | MPM_COMPILE_RULES_VERBOSE_STATS);
+    mpm_compile_rules(rules, sizeof(rules) / sizeof(mpm_rule_pattern), &rule_list, NULL, MPM_COMPILE_RULES_VERBOSE | MPM_COMPILE_RULES_VERBOSE_STATS);
     mpm_exec_list(rule_list, (mpm_char8 *)subject, strlen(subject), 0, result, stack);
     mpm_rule_list_free(rule_list);
 
@@ -890,6 +890,7 @@ static void new_feature(void)
     void *stack = NULL;
 #endif
     mpm_uint32 *result;
+    mpm_size consumed_memory;
     clock_t time;
 
     /* Killer pattern: /.+DELETE.+FROM/Ui"/ */
@@ -897,22 +898,24 @@ static void new_feature(void)
     load_input("../../input.txt");
     result = (mpm_uint32 *)malloc(((loaded_rules_size + 31) & ~0x1f) >> 3);
 
-    mpm_compile_rules(loaded_rules, loaded_rules_size, &rule_list, MPM_COMPILE_RULES_VERBOSE | MPM_COMPILE_RULES_VERBOSE_STATS);
+    mpm_compile_rules(loaded_rules, loaded_rules_size, &rule_list, &consumed_memory, MPM_COMPILE_RULES_VERBOSE | MPM_COMPILE_RULES_VERBOSE_STATS);
     if (!rule_list) {
         printf("Cannot compile the rule list\n");
         return;
     }
+    printf("MPM State machine size: %ld\n", (long)consumed_memory);
     time = clock();
     mpm_exec_list(rule_list, (mpm_char8*)input, input_length, 0, result, stack);
     time = clock() - time;
     printf("MPM run: %d ms\n", (int)(time * 1000 / (CLOCKS_PER_SEC)));
     mpm_rule_list_free(rule_list);
 
-    mpm_compile_rules(loaded_rules, loaded_rules_size, &rule_list, MPM_COMPILE_RULES_PCRE);
+    mpm_compile_rules(loaded_rules, loaded_rules_size, &rule_list, &consumed_memory, MPM_COMPILE_RULES_PCRE);
     if (!rule_list) {
         printf("Cannot compile the pcre-only rule list\n");
         return;
     }
+    printf("PCRE State machine size: %ld\n", (long)consumed_memory);
     time = clock();
     mpm_exec_list(rule_list, (mpm_char8*)input, input_length, 0, result, stack);
     time = clock() - time;

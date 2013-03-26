@@ -139,11 +139,14 @@ int mpm_add(mpm_re *re, mpm_char8 *pattern, mpm_uint32 flags);
   /*! Display some statistics (e.g: memory consumption) about the compiled pattern. */
 #define MPM_COMPILE_VERBOSE_STATS       0x004
 
-int mpm_compile(mpm_re *re, mpm_uint32 flags);
+int mpm_compile(mpm_re *re, mpm_size *consumed_memory, mpm_uint32 flags);
 
 /*! \fn int mpm_compile(mpm_re *re, mpm_uint32 flags)
  *  \brief Compiles the pattern set into a single DFA representation.
  *  \param re set of regular expressions created by mpm_create.
+ *  \param consumed_memory if this argument is non-NULL, it contains the memory
+ *                         consumption of the machine when MPM_NO_ERROR is returned.
+ *                         Otherwise its value is undefined.
  *  \param flags flags started by MPM_COMPILE_ prefix.
  *  \return MPM_NO_ERROR on success.
  */
@@ -289,13 +292,16 @@ struct mpm_rule_list_internal;
 /*! Public representation of a regular expression set. */
 typedef struct mpm_rule_list_internal mpm_rule_list;
 
-int mpm_compile_rules(mpm_rule_pattern *rules, mpm_size no_rule_patterns, mpm_rule_list **result_rule_list, mpm_uint32 flags);
+int mpm_compile_rules(mpm_rule_pattern *rules, mpm_size no_rule_patterns, mpm_rule_list **result_rule_list, mpm_size *consumed_memory, mpm_uint32 flags);
 
 /*! \fn int mpm_compile_rules(mpm_rule_pattern *rules, mpm_size no_rule_patterns, mpm_rule_list **result_rule_list, mpm_uint32 flags);
  *  \brief Compiles a rule set to an internal representation
  *  \param rules an array of mpm_rule_pattern items.
  *  \param no_rule_patterns number of rules.
  *  \param result_rule_list output argument, which contains the compiled rule set.
+ *  \param consumed_memory if this argument is non-NULL, it contains the memory
+ *                         consumption of the machine when MPM_NO_ERROR is returned.
+ *                         Otherwise its value is undefined.
  *  \param flags flags started by MPM_COMPILE_RULES_ prefix.
  *  \return MPM_NO_ERROR on success.
  */

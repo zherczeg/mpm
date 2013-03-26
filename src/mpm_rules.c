@@ -112,7 +112,6 @@ static int clustering(pattern_data *pattern_list, pattern_data *pattern_list_end
     /* Creates regular expression groups. */
     pattern_data *pattern;
     pattern_data *last_pattern;
-    pattern_data *last_head_pattern;
     mpm_cluster_item *cluster_items;
     mpm_cluster_item *cluster_item;
     mpm_re *re;
@@ -158,7 +157,6 @@ static int clustering(pattern_data *pattern_list, pattern_data *pattern_list_end
         if (cluster_item->group_id != group_id) {
             group_id = cluster_item->group_id;
             re = cluster_item->re;
-            last_head_pattern = pattern;
         } else {
             if (mpm_combine(&re, cluster_item->re, 0) != MPM_NO_ERROR) {
                 free(cluster_items);
@@ -176,7 +174,7 @@ static int clustering(pattern_data *pattern_list, pattern_data *pattern_list_end
     return 1;
 }
 
-static mpm_uint16 * compute_rule_list(pattern_list_item *pattern_list_begin, pattern_list_item *pattern_list_end, mpm_size rule_count)
+static mpm_uint16 * compute_rule_list(pattern_list_item *pattern_list_begin, pattern_list_item *pattern_list_end, mpm_size rule_count, mpm_size *consumed_memory)
 {
      mpm_uint16 *rule_indices;
      mpm_uint16 *rule_index;
@@ -214,7 +212,10 @@ static mpm_uint16 * compute_rule_list(pattern_list_item *pattern_list_begin, pat
          pattern_list++;
      }
 
-     rule_indices = (mpm_uint16 *)malloc(rule_list_size * sizeof(mpm_uint16 *));
+     if (consumed_memory)
+         *consumed_memory = sizeof(mpm_rule_list) + rule_list_size * sizeof(mpm_uint16);
+
+     rule_indices = (mpm_uint16 *)malloc(rule_list_size * sizeof(mpm_uint16));
      if (!rule_indices) {
          free(touched_rules);
          return NULL;
@@ -345,7 +346,7 @@ static void print_pattern_list(pattern_list_item *pattern_list, pattern_list_ite
 /*                                 Main function.                          */
 /* ----------------------------------------------------------------------- */
 
-int mpm_compile_rules(mpm_rule_pattern *rules, mpm_size no_rule_patterns, mpm_rule_list **result_rule_list, mpm_uint32 flags)
+int mpm_compile_rules(mpm_rule_pattern *rules, mpm_size no_rule_patterns, mpm_rule_list **result_rule_list, mpm_size *consumed_memory, mpm_uint32 flags)
 {
     pattern_data *pattern_list;
     pattern_data *pattern_list_end;
@@ -356,6 +357,7 @@ int mpm_compile_rules(mpm_rule_pattern *rules, mpm_size no_rule_patterns, mpm_ru
     mpm_uint16 *rule_indices;
     mpm_size pattern_hash_mask;
     mpm_size rule_count;
+    mpm_size last_consumed_memory;
     mpm_size pattern_list_length;
     mpm_rule_pattern *rules_end;
     mpm_re *re;
@@ -487,7 +489,7 @@ int mpm_compile_rules(mpm_rule_pattern *rules, mpm_size no_rule_patterns, mpm_ru
         pattern++;
     }
 
-    rule_indices = compute_rule_list(rule_list->pattern_list, rule_list->pattern_list + pattern_list_length, rule_count);
+    rule_indices = compute_rule_list(rule_list->pattern_list, rule_list->pattern_list + pattern_list_length, rule_count, consumed_memory);
     if (!rule_indices) {
         free(rule_list);
         free_pattern_list(pattern_list, pattern_list_end);
@@ -527,8 +529,11 @@ int mpm_compile_rules(mpm_rule_pattern *rules, mpm_size no_rule_patterns, mpm_ru
     while (pattern_list_length--) {
         if (pattern_reference->u1.pcre)
             pattern_hash_mask |= mpm_private_compile_pcre(pattern_reference);
-        else
-            pattern_hash_mask |= (mpm_compile(pattern_reference->u2.re, (flags & MPM_COMPILE_RULES_VERBOSE_STATS) ? MPM_COMPILE_VERBOSE_STATS : 0) != MPM_NO_ERROR);
+        else {
+            pattern_hash_mask |= (mpm_compile(pattern_reference->u2.re, &last_consumed_memory, (flags & MPM_COMPILE_RULES_VERBOSE_STATS) ? MPM_COMPILE_VERBOSE_STATS : 0) != MPM_NO_ERROR);
+            if (!pattern_hash_mask && consumed_memory)
+                *consumed_memory += last_consumed_memory;
+        }
         pattern_reference++;
     }
     /* Any error occured. */
