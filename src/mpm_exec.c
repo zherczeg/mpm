@@ -392,7 +392,7 @@ pcre_match:
             (const char *)subject, (int)length, (int)offset, 0, ovector, 32) >= 0;
 #else
     rule_index = pcre_exec((const pcre *)next_pattern->u1.pcre, (pcre_extra *)next_pattern->u2.pcre_extra,
-        (const char *)subject, (int)length, (int)offset, options, ovector, 32) >= 0;
+        (const char *)subject, (int)length, (int)offset, 0, ovector, 32) >= 0;
 #endif
 
     next_pattern++;
@@ -454,6 +454,6 @@ void mpm_private_free_pcre(pattern_list_item *item)
         pcre_free_study((pcre_extra *)item->u2.pcre_extra);
 #else
     if (item->u2.pcre_extra)
-        pcre_free(item->u2.pcre_study);
+        pcre_free(item->u2.pcre_extra);
 #endif
 }
