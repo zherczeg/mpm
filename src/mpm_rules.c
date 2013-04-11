@@ -126,6 +126,11 @@ static int clustering(pattern_data *pattern_list, pattern_data *pattern_list_end
         pattern++;
     }
 
+#if defined MPM_VERBOSE && MPM_VERBOSE
+    if (flags & MPM_COMPILE_RULES_VERBOSE)
+        printf("Number of unique patterns: %d\n", count);
+#endif
+
     if (count == 0)
         return 1;
 
@@ -264,17 +269,24 @@ static mpm_uint16 * compute_rule_list(pattern_list_item *pattern_list_begin, pat
 static void heap_down(pattern_list_item *pattern_list_begin, mpm_size start, mpm_size end)
 {
     pattern_list_item temp;
-    mpm_size child = start * 2 + 1;
+    mpm_size child;
+    mpm_size swap;
 
-    while (child <= end) {
-        if (child + 1 <= end && pattern_list_begin[child].u1.priority > pattern_list_begin[child + 1].u1.priority)
-            child++;
-        if (pattern_list_begin[start].u1.priority <= pattern_list_begin[child].u1.priority)
+    while (1) {
+        child = start * 2 + 1;
+        if (child > end)
+            return;
+        swap = start;
+        if (pattern_list_begin[swap].u1.priority > pattern_list_begin[child].u1.priority)
+            swap = child;
+        if (child + 1 <= end && pattern_list_begin[swap].u1.priority > pattern_list_begin[child + 1].u1.priority)
+            swap = child + 1;
+        if (swap == start)
             return;
         temp = pattern_list_begin[start];
-        pattern_list_begin[start] = pattern_list_begin[child];
-        pattern_list_begin[child] = temp;
-        start = child;
+        pattern_list_begin[start] = pattern_list_begin[swap];
+        pattern_list_begin[swap] = temp;
+        start = swap;
     }
 }
 
@@ -312,10 +324,15 @@ static void print_pattern_list(pattern_list_item *pattern_list, pattern_list_ite
 {
     pattern_data *pattern;
     mpm_uint16 *rule_indices;
+    int all_count, mpm_count;
 
+    all_count = pattern_list_end - pattern_list;
+    mpm_count = 0;
     while (pattern_list < pattern_list_end) {
         pattern = pattern_list->u2.pattern;
         rule_indices = pattern_list->rule_indices - 1;
+        if (pattern->re)
+            mpm_count++;
         printf("\nNew %s pattern. Priority: %d [rules: %d", pattern->re ? "mpm" : "pcre", pattern_list->u1.priority, *rule_indices);
         while (*(--rule_indices) != RULE_LIST_END)
             printf(", %d", *rule_indices);
@@ -337,7 +354,7 @@ static void print_pattern_list(pattern_list_item *pattern_list, pattern_list_ite
         printf("\n");
         pattern_list++;
     }
-    printf("\n");
+    printf("\nTotal number of regular expressions: %d [mpm: %d pcre: %d] \n\n", all_count, mpm_count, all_count - mpm_count);
 }
 
 #endif

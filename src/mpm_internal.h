@@ -66,9 +66,10 @@
 /* OPCODE_BRANCH | (INDEX << OPCODE_ARG_SHIFT) */
 #define OPCODE_BRANCH          3
 
+#define PATTERN_HAS_REPEAT     0x1
 /* These two flags cannot be set in the same time. */
-#define PATTERN_ANCHORED       0x1
-#define PATTERN_MULTILINE      0x2
+#define PATTERN_ANCHORED       0x2
+#define PATTERN_MULTILINE      0x4
 
 /* A DFA representation of a pattern */
 typedef struct mpm_re_pattern {
@@ -91,7 +92,7 @@ typedef struct mpm_re_pattern {
 } mpm_re_pattern;
 
 #define RE_MODE_COMPILE        0x1
-/* Midify mpm_exec4 if you change this constant. */
+/* Modify mpm_exec4 if you change this constant. */
 #define RE_CHAR_SET_256        0x2
 
 /* Internal representation of the regular expression. */

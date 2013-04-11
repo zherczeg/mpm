@@ -6,6 +6,7 @@ DFA representation of /^aa/
       9: [a] (term:1)
      18: END (id:0)
 
+  Internal flags: anchored
   START : 0
       0 : [a] 1
       1!: [a]
@@ -39,6 +40,7 @@ DFA representation of /^aa/m
      18: [a] (term:2)
      27: END (id:0)
 
+  Internal flags: multiline
   START : 0
       0 : [\x0a\x0d] 1
       1 : [a] 2
@@ -83,6 +85,7 @@ DFA representation of /^\xab/m
       9: [\xab] (term:1)
      18: END (id:0)
 
+  Internal flags: multiline
   START : 0
       0 : [\x0a\x0d] 1
       1!: [\xab]
@@ -116,6 +119,7 @@ DFA representation of /^[^\xab]/m
       9: [\x00-\xaa\xac-\xff] (term:1)
      18: END (id:0)
 
+  Internal flags: multiline
   START : 0
       0 : [\x0a\x0d] 1
       1!: [\x00-\xaa\xac-\xff]
@@ -157,6 +161,7 @@ DFA representation of /^(?:a|a*)/
      21: BRANCH TO 12 (-9)
      22: END (id:0)
 
+  Internal flags: has_repeat anchored
   START!: 0 1
       0!: [a]
       1!: [a] 1
@@ -174,6 +179,7 @@ DFA representation of /^(?:a|a*)/m
      30: BRANCH TO 21 (-9)
      31: END (id:0)
 
+  Internal flags: has_repeat multiline
   START : 0
       0!: [\x0a\x0d] 1 2
       1!: [a]

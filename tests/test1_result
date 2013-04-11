@@ -12,6 +12,7 @@ DFA representation of /aB#.\x00\x01\xff\xfe/
      63: [\xfe] (term:7)
      72: END (id:0)
 
+  Internal flags: none
   START : 0
       0 : [a] 1
       1 : [B] 2
@@ -32,6 +33,7 @@ DFA representation of /.[^c][^\x00][^\x01][^\xfe][^\xff]/d
      45: [\x00-\xfe] (term:13)
      54: END (id:1)
 
+  Internal flags: none
   START : 8
       8 : [\x00-\xff] 9
       9 : [\x00-bd-\xff] 10
@@ -50,6 +52,7 @@ DFA representation of /aB[^c][^D]#[^#]/i
      45: [\x00-"$-\xff] (term:19)
      54: END (id:2)
 
+  Internal flags: none
   START : 14
      14 : [Aa] 15
      15 : [Bb] 16
@@ -65,6 +68,7 @@ DFA representation of / [a-z] [\x00-\x05y-\xff]  (?i)[c-fMX] /x
      18: [C-FMXc-fmx] (term:22)
      27: END (id:3)
 
+  Internal flags: none
   START : 20
      20 : [a-z] 21
      21 : [\x00-\x05y-\xff] 22
@@ -77,6 +81,7 @@ DFA representation of / [\x01\x02def\xfd\xfe]  (?i)[cd\s]  [\vedcb \d] /x
      18: [\x0a-\x0d 0-9B-Eb-e\x85] (term:25)
      27: END (id:4)
 
+  Internal flags: none
   START : 23
      23 : [\x01\x02d-f\xfd\xfe] 24
      24 : [\x09\x0a\x0c\x0d CDcd] 25
@@ -96,6 +101,7 @@ DFA representation of /\d\D\w\W\s\S\h\H\v\V/i
      81: [\x00-\x09\x0e-\x84\x86-\xff] (term:35)
      90: END (id:5)
 
+  Internal flags: none
   START : 26
      26 : [0-9] 27
      27 : [\x00-/:-\xff] 28

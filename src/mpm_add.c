@@ -747,12 +747,14 @@ static int get_number_of_reached_states(int32_t *word_code, int32_t *from)
 }
 
 static mpm_uint32 * get_reached_states(int32_t *word_code, int32_t *from,
-    mpm_uint32 *dfa_offset, mpm_uint32 term_index)
+    mpm_uint32 *dfa_offset, mpm_uint32 term_index, mpm_uint32 start_term, int *has_repeat)
 {
     int opcode, reached_states = 0;
     mpm_uint32 *dfa_start_offset = dfa_offset;
 
     dfa_offset++;
+    *has_repeat = 0;
+    start_term += term_index;
     recursive_mark(from);
     while (1) {
         opcode = word_code[0] & OPCODE_MASK;
@@ -761,6 +763,8 @@ static mpm_uint32 * get_reached_states(int32_t *word_code, int32_t *from,
             word_code[0] -= OPCODE_MARKED;
             if (opcode == OPCODE_SET) {
                 *dfa_offset++ = term_index;
+                if (term_index <= start_term)
+                    *has_repeat = 1;
                 reached_states++;
             }
         } else if (opcode == OPCODE_END)
@@ -786,7 +790,7 @@ int mpm_add(mpm_re *re, mpm_char8 *pattern, mpm_uint32 flags)
 {
     pcre *pcre_re;
     const char *errptr;
-    int erroffset;
+    int erroffset, has_repeat;
     mpm_uint32 size;
     int options = PCRE_NEWLINE_CRLF | PCRE_BSR_ANYCRLF | PCRE_NO_AUTO_CAPTURE;
     REAL_PCRE *real_pcre_re;
@@ -1008,7 +1012,7 @@ int mpm_add(mpm_re *re, mpm_char8 *pattern, mpm_uint32 flags)
     term_index = 0;
     dfa_offset[0] = re->compile.next_id;
     dfa_offset = get_reached_states(word_code_start, word_code_start,
-        dfa_offset, re->compile.next_term_index);
+        dfa_offset, re->compile.next_term_index, 0, &has_repeat);
 
     while ((word_code[0] & OPCODE_MASK) != OPCODE_END) {
         if ((word_code[0] & OPCODE_MASK) == OPCODE_SET) {
@@ -1016,7 +1020,9 @@ int mpm_add(mpm_re *re, mpm_char8 *pattern, mpm_uint32 flags)
             memcpy(dfa_offset, word_code + 1, 32);
             dfa_offset[8] = re->compile.next_id;
             dfa_offset = get_reached_states(word_code_start, word_code + 1 + CHAR_SET_SIZE,
-                dfa_offset + CHAR_SET_SIZE, re->compile.next_term_index);
+                dfa_offset + CHAR_SET_SIZE, re->compile.next_term_index, term_index, &has_repeat);
+            if (has_repeat)
+                re_pattern->flags |= PATTERN_HAS_REPEAT;
             term_index++;
             word_code += CHAR_SET_SIZE;
         }
@@ -1032,6 +1038,18 @@ int mpm_add(mpm_re *re, mpm_char8 *pattern, mpm_uint32 flags)
 
 #if defined MPM_VERBOSE && MPM_VERBOSE
     if (flags & MPM_ADD_VERBOSE) {
+        printf("  Internal flags:");
+        if (!(re_pattern->flags & (PATTERN_HAS_REPEAT | PATTERN_ANCHORED | PATTERN_MULTILINE)))
+            printf(" none\n");
+        else {
+            if (re_pattern->flags & PATTERN_HAS_REPEAT)
+                printf(" has_repeat");
+            if (re_pattern->flags & PATTERN_ANCHORED)
+                printf(" anchored");
+            if (re_pattern->flags & PATTERN_MULTILINE)
+                printf(" multiline");
+            printf("\n");
+        }
         for (term_index = 0; term_index <= re_pattern->term_range_size; term_index++) {
             if (term_index == 0) {
                 dfa_offset = re_pattern->word_code + re_pattern->term_range_size;

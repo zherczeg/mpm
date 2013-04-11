@@ -881,7 +881,7 @@ static void new_feature(void)
     pcre_jit_stack_free(stack);
 #endif
 
-#elif 1
+#elif 0
 
     mpm_rule_list *rule_list;
 #if PCRE_MAJOR >= 8 && PCRE_MINOR >= 32
@@ -926,6 +926,25 @@ static void new_feature(void)
 #if PCRE_MAJOR >= 8 && PCRE_MINOR >= 32
     pcre_jit_stack_free(stack);
 #endif
+
+#elif 1
+
+#include "../../x/patterns2.txt"
+
+    mpm_rule_list *rule_list;
+#if PCRE_MAJOR >= 8 && PCRE_MINOR >= 32
+    void *stack = pcre_jit_stack_alloc(32 * 1024, 512 * 1024);
+#else
+    void *stack = NULL;
+#endif
+    mpm_uint32 *result;
+    mpm_size consumed_memory;
+
+    printf("Processing %d rules:\n", sizeof(rules_global) / sizeof(mpm_rule_pattern));
+
+    mpm_compile_rules(rules_global, sizeof(rules_global) / sizeof(mpm_rule_pattern), &rule_list, &consumed_memory, MPM_COMPILE_RULES_VERBOSE /*| MPM_COMPILE_RULES_VERBOSE_STATS*/);
+
+    printf("MPM State machine size: %ld\n", (long)consumed_memory);
 
 #else
 

@@ -38,6 +38,7 @@ DFA representation of /#a+?#b*#c??#d{3,6}#e{0,3}?#f{2,}#/
     201: [#] (term:21)
     210: END (id:0)
 
+  Internal flags: has_repeat
   START : 0
       0 : [#] 1
       1 : [a] 1 2
@@ -100,6 +101,7 @@ DFA representation of /#a+#b*?#c?#d{3,6}?#e{0,3}#f{2,}?#/i
     201: [#] (term:43)
     210: END (id:1)
 
+  Internal flags: has_repeat
   START : 22
      22 : [#] 23
      23 : [Aa] 23 24
@@ -162,6 +164,7 @@ DFA representation of /#[^a]+?#[^b]*#[^c]??#[^d]{3,6}#[^e]{0,3}?#[^f]{2,}#/
     201: [#] (term:65)
     210: END (id:2)
 
+  Internal flags: has_repeat
   START : 44
      44 : [#] 45
      45 : [\x00-`b-\xff] 45 46
@@ -224,6 +227,7 @@ DFA representation of /#[^a]+#[^b]*?#[^c]?#[^d]{3,6}?#[^e]{0,3}#[^f]{2,}?#/i
     201: [#] (term:87)
     210: END (id:3)
 
+  Internal flags: has_repeat
   START : 66
      66 : [#] 67
      67 : [\x00-@B-`b-\xff] 67 68
@@ -286,6 +290,7 @@ DFA representation of /#\s+?#\w*#\d??#\h{3,6}#\w{0,3}?#.{2,}#/i
     201: [#] (term:109)
     210: END (id:4)
 
+  Internal flags: has_repeat
   START : 88
      88 : [#] 89
      89 : [\x09-\x0d ] 89 90
@@ -363,6 +368,7 @@ DFA representation of /#\S+?#\W*#\D??#\H{6,9}#\W{0,7}?#.{6,}#/d
     304: [#] (term:142)
     313: END (id:5)
 
+  Internal flags: has_repeat
   START : 110
     110 : [#] 111
     111 : [\x00-\x08\x0e-\x1f!-\xff] 111 112
@@ -434,6 +440,7 @@ DFA representation of /#[a-z]+?#[a-z]*#[a-z]??#[a-z]{3,6}#[a-z]{0,3}?#[a-z]{2,}#
     191: [#] (term:163)
     200: END (id:6)
 
+  Internal flags: has_repeat
   START : 143
     143 : [#] 144
     144 : [a-z] 144 145
@@ -479,6 +486,7 @@ DFA representation of /aa|bb(cc(?:dd|ee)|ff)/
     105: [f] (term:175)
     114: END (id:7)
 
+  Internal flags: none
   START : 164 166
     164 : [a] 165
     165!: [a]
@@ -503,6 +511,7 @@ DFA representation of /a.+b*?/
      45: [?] (term:181)
      54: END (id:8)
 
+  Internal flags: none
   START : 176
     176 : [a] 177
     177 : [.] 178
@@ -521,6 +530,7 @@ DFA representation of /x[Bm]*Y?/i
      45: [*] (term:187)
      54: END (id:9)
 
+  Internal flags: none
   START : 182
     182 : [Xx] 183
     183 : [[] 184
@@ -555,6 +565,7 @@ DFA representation of /(ab|cd(mn|op)+|ef(gh)?)*/
     117: BRANCH TO 1 (-116)
     118: END (id:10)
 
+  Internal flags: has_repeat
   START!: 188 190 196
     188 : [a] 189
     189!: [b] 188 190 196
@@ -579,6 +590,7 @@ DFA representation of /a?b?/
      11: [b] (term:189)
      20: END (id:10)
 
+  Internal flags: none
   START!: 188 189
     188!: [a] 189
     189!: [b]
@@ -594,6 +606,7 @@ DFA representation of /a|b?/
      12: [b] (term:189)
      21: END (id:10)
 
+  Internal flags: none
   START!: 188 189
     188!: [a]
     189!: [b]
@@ -604,6 +617,7 @@ DFA representation of //
   Flags: none
       0:       0: END (id:10)
 
+  Internal flags: none
   START!:
 
 Expected error: 'Pattern matches an empty string (matches to any input)' occured

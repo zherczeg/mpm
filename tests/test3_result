@@ -26,6 +26,7 @@ DFA representation of /\x3Cobject[^\x3E]+?data\s*\x3D\s*\x22\x22/
     149: ["] (term:16)
     158: END (id:0)
 
+  Internal flags: has_repeat
   START : 0
       0 : [<] 1
       1 : [o] 2
@@ -305,6 +306,7 @@ DFA representation of /^[^\s]{256}/
    2295: [\x00-\x08\x0b\x0e-\x1f!-\xff] (term:272)
    2304: END (id:1)
 
+  Internal flags: anchored
   START : 17
      17 : [\x00-\x08\x0b\x0e-\x1f!-\xff] 18
      18 : [\x00-\x08\x0b\x0e-\x1f!-\xff] 19

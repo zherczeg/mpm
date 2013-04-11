@@ -212,7 +212,7 @@ int mpm_combine(mpm_re **destination_re, mpm_re *source_re, mpm_uint32 flags);
 int mpm_distance(mpm_re *re1, mpm_size index1, mpm_re *re2, mpm_size index2);
 
 /*! \fn int mpm_distance(mpm_re *re1, int index1, mpm_re *re2, int index2)
- *  \brief Calculates the Levenshtein distance between two patterns.
+ *  \brief Rates the distance between two patterns.
  *         The re1 and re2 arguments can be the same.
  *  \param re1 set of regular expressions created by mpm_create
  *             (the set must not be compiled by mpm_compile).
@@ -222,10 +222,10 @@ int mpm_distance(mpm_re *re1, mpm_size index1, mpm_re *re2, mpm_size index2);
  *             (the set must not be compiled by mpm_compile).
  *  \param index2 the index of the pattern in re1. The first pattern added by
  *                mpm_add has index 0, the second has index 1, and so on.
- *  \return if the return value is <= 0, it contains the distance. The
- *          value of 0 means the two patterns have identical terminals
- *          in the. E.g: (a|b?(cd|ef)) is the same as (a|bcd)ef. Otherwise
- *          an error code is returned (e.g: MPM_NO_MEMORY).
+ *  \return if the return value is <= 0, it contains the distance. The distance
+ *          computed by a heuristc algorithm, and not an absolute value. It
+ *          ranges between 0 and -128, lower is worse. Otherwise an error
+ *          code is returned (e.g: MPM_NO_MEMORY).
  */
 
 int mpm_rating(mpm_re *re, mpm_size index);

@@ -9,6 +9,7 @@ DFA representation of /a.b+c/
      36: [c] (term:4)
      45: END (id:0)
 
+  Internal flags: none
   START : 0
       0 : [a] 1
       1 : [.] 2
@@ -62,6 +63,7 @@ DFA representation of /[Ab]X+/i
      45: [+] (term:5)
      54: END (id:0)
 
+  Internal flags: none
   START : 0
       0 : [[] 1
       1 : [Aa] 2
@@ -127,6 +129,7 @@ DFA representation of /a?b*(cc+|de?f)/i
      61: [Ff] (term:6)
      70: END (id:0)
 
+  Internal flags: has_repeat
   START : 0 1 2 4
       0 : [Aa] 1 2 4
       1 : [Bb] 1 2 4
@@ -205,6 +208,7 @@ DFA representation of /(m[xy]+m?n){2}/
      67: [n] (term:7)
      76: END (id:0)
 
+  Internal flags: has_repeat
   START : 0
       0 : [m] 1
       1 : [xy] 1 2 3
@@ -271,6 +275,7 @@ DFA representation of /\x7f{2}/
       9: [\x7f] (term:1)
      18: END (id:0)
 
+  Internal flags: none
   START : 0
       0 : [\x7f] 1
       1!: [\x7f]
@@ -301,6 +306,7 @@ DFA representation of /\x80{2}/
       9: [\x80] (term:1)
      18: END (id:0)
 
+  Internal flags: none
   START : 0
       0 : [\x80] 1
       1!: [\x80]
@@ -332,6 +338,7 @@ DFA representation of /[a-\x90]{3}/
      18: [a-\x90] (term:2)
      27: END (id:0)
 
+  Internal flags: none
   START : 0
       0 : [a-\x90] 1
       1 : [a-\x90] 2

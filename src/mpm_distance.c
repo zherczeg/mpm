@@ -79,6 +79,10 @@ int mpm_distance(mpm_re *re1, mpm_size index1, mpm_re *re2, mpm_size index2)
     if (!pattern2)
         return MPM_NO_SUCH_PATTERN;
 
+    /* The rate of a pattern */
+    if ((pattern1->flags & PATTERN_HAS_REPEAT) != (pattern2->flags & PATTERN_HAS_REPEAT))
+        return -128;
+
     /* We choose the smaller string as base to decrease memory consumption.  */
     if (pattern1->term_range_size <= pattern2->term_range_size) {
         word_code1 = pattern1->word_code;
@@ -117,8 +121,8 @@ int mpm_distance(mpm_re *re1, mpm_size index1, mpm_re *re2, mpm_size index2)
             break;
 
         while (1) {
-            ++word_code_compare1;
-            ++word_code_compare2;
+            word_code_compare1++;
+            word_code_compare2++;
             if (*word_code_compare1 == DFA_NO_DATA || *word_code_compare2 == DFA_NO_DATA)
                 break;
             if (*word_code_compare1 - start1 != *word_code_compare2 - start2)
@@ -129,6 +133,13 @@ int mpm_distance(mpm_re *re1, mpm_size index1, mpm_re *re2, mpm_size index2)
             break;
         if (i != 0)
             prefix_size++;
+    }
+
+    if (!(pattern1->flags & PATTERN_HAS_REPEAT)) {
+        /* The rate of non-repeating strings are calculated by the prefix similarity and length difference. */
+        if (prefix_size > 6)
+            return -1;
+        return -13 + (prefix_size * 2);
     }
 
     base = (int32_t *)malloc(size1 * 2 * sizeof(int32_t));
@@ -164,8 +175,12 @@ int mpm_distance(mpm_re *re1, mpm_size index1, mpm_re *re2, mpm_size index2)
     }
 
     a = -(int32_t)current[size1 - 1] + (int32_t)(prefix_size / 3);
+    if (a >= 0)
+        a = -1;
+    if (a < -127)
+        a = -127;
     free(base);
-    return a < 0 ? a : -1;
+    return a;
 }
 
 /* ----------------------------------------------------------------------- */
@@ -251,11 +266,23 @@ int mpm_rating(mpm_re *re, mpm_size index)
 #define DISTANCE(x, y) \
     distance_matrix[(items[x].group_id & 0xffff) + (items[y].group_id & 0xffff) * distance_matrix_size]
 
+static int distance_sum(mpm_cluster_item *items, int *distance_matrix, int from, int to, mpm_size offset)
+{
+    /* offset must be (items[current].group_id & 0xffff) * distance_matrix_size */
+    int sum = 0;
+    do {
+        sum += distance_matrix[(items[from].group_id & 0xffff) + offset];
+        from++;
+    } while (from <= to);
+    return sum;
+}
+
 static int split_group(int *distance_matrix, mpm_size distance_matrix_size,
     mpm_cluster_item *items, mpm_size no_items, mpm_uint32 *next_index)
 {
     mpm_size x, y;
-    mpm_size left, right;
+    mpm_size left, right, offset;
+    int even, distance_left, distance_right;
     int distance, max_distance, return_value;
     mpm_cluster_item item;
     mpm_uint32 group_id, other_group_id;
@@ -320,8 +347,12 @@ static int split_group(int *distance_matrix, mpm_size distance_matrix_size,
 
     left = 1;
     right = no_items - 1;
+    even = 1;
     while (left < right) {
-        if (DISTANCE(0, left) <= DISTANCE(left, no_items)) {
+        offset = (items[left].group_id & 0xffff) * distance_matrix_size;
+        distance_left = distance_sum(items, distance_matrix, 0, left - 1, offset);
+        distance_right = distance_sum(items, distance_matrix, right + 1, no_items, offset);
+        if ((distance_left < distance_right) || (distance_left == distance_right && even)) {
             items[left].group_id = (items[left].group_id & 0xffff) | group_id;
             left++;
         } else {
@@ -331,9 +362,13 @@ static int split_group(int *distance_matrix, mpm_size distance_matrix_size,
             items[right].group_id = (items[right].group_id & 0xffff) | other_group_id;
             right--;
         }
+        even ^= 1;
     }
 
-    if (DISTANCE(0, left) <= DISTANCE(left, no_items)) {
+    offset = (items[left].group_id & 0xffff) * distance_matrix_size;
+    distance_left = distance_sum(items, distance_matrix, 0, left - 1, offset);
+    distance_right = distance_sum(items, distance_matrix, right + 1, no_items, offset);
+    if ((distance_left < distance_right) || (distance_left == distance_right && even)) {
         items[left].group_id = (items[left].group_id & 0xffff) | group_id;
         left++;
     } else
