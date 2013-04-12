@@ -327,6 +327,8 @@ re_match:
                         next_re_pattern++;
                         goto re_list_full;
                     }
+                    /* No need to add this rule multiple times. */
+                    break;
                 }
                 rule_indices -= 2;
             } while (!(rule_offset & RULE_LIST_END));
