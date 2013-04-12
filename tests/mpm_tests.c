@@ -820,7 +820,7 @@ static void new_feature(void)
     mpm_compile_rules(rules, sizeof(rules) / sizeof(mpm_rule_pattern), &rule_list, NULL, MPM_COMPILE_RULES_VERBOSE);
     mpm_rule_list_free(rule_list);
 
-#elif 0
+#elif 1
 
     mpm_rule_list *rule_list;
 #if PCRE_MAJOR >= 8 && PCRE_MINOR >= 32
@@ -927,9 +927,9 @@ static void new_feature(void)
     pcre_jit_stack_free(stack);
 #endif
 
-#elif 1
+#elif 0
 
-#include "../../x/patterns2.txt"
+#include "../../uri/patterns.txt"
 
     mpm_rule_list *rule_list;
 #if PCRE_MAJOR >= 8 && PCRE_MINOR >= 32

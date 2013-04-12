@@ -124,7 +124,7 @@ struct pattern_data;
 
 /* Each pattern set contains an mpm_re or a pcre pattern. */
 typedef struct pattern_list_item {
-    mpm_uint16 *rule_indices;
+    mpm_uint32 *rule_indices;
     union {
         mpm_uint32 priority;
         void *pcre;
@@ -138,7 +138,7 @@ typedef struct pattern_list_item {
 } pattern_list_item;
 
 struct mpm_rule_list_internal {
-    mpm_uint16 *rule_indices;
+    mpm_uint32 *rule_indices;
     mpm_size pattern_list_length;
     mpm_size rule_count;
     mpm_uint32 result_length;
@@ -157,8 +157,9 @@ struct mpm_rule_list_internal {
 #define DFA_GET_BIT(set, bit)       ((set)[(bit) >> 5] & (1 << ((bit) & 0x1f)))
 
 /* Rule set flags. */
-#define RULE_LIST_END          0xffff
-#define PATTERN_LIST_END       0xfffe
+#define RULE_LIST_END          0x10000
+#define PATTERN_LIST_END       0x20000
+#define PATTERN_LIST_MASK      0x0ffff
 
 /* Private, shared functions. */
 int mpm_private_rating(mpm_re_pattern *pattern);

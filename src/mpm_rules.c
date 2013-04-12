@@ -128,7 +128,7 @@ static int clustering(pattern_data *pattern_list, pattern_data *pattern_list_end
 
 #if defined MPM_VERBOSE && MPM_VERBOSE
     if (flags & MPM_COMPILE_RULES_VERBOSE)
-        printf("Number of unique patterns: %d\n", count);
+        printf("Number of unique patterns: %d\n", (int)count);
 #endif
 
     if (count == 0)
@@ -179,48 +179,68 @@ static int clustering(pattern_data *pattern_list, pattern_data *pattern_list_end
     return 1;
 }
 
-static mpm_uint16 * compute_rule_list(pattern_list_item *pattern_list_begin, pattern_list_item *pattern_list_end, mpm_size rule_count, mpm_size *consumed_memory)
+static mpm_uint32 * compute_rule_list(pattern_list_item *pattern_list_begin, pattern_list_item *pattern_list_end, mpm_size rule_count, mpm_size *consumed_memory)
 {
-     mpm_uint16 *rule_indices;
-     mpm_uint16 *rule_index;
-     mpm_uint8 *touched_rules;
+     mpm_uint32 *rule_indices;
+     mpm_uint32 *rule_index;
+     mpm_uint32 *touched_rules;
+     mpm_uint32 *touched_rule_end;
+     mpm_uint32 *touched_rule_ptr;
+     mpm_size touched_rule_size;
      pattern_list_item *pattern_list;
      pattern_data *pattern;
      pattern_data *same_pattern;
      mpm_size rule_list_size;
-     mpm_uint32 priority;
+     mpm_uint32 priority, bit_index;
 
      /* Calculating rule list size. */
-     touched_rules = (mpm_uint8 *)malloc(rule_count);
+     touched_rule_size = ((rule_count + 0x1f) & ~0x1f) >> 3;
+     touched_rules = (mpm_uint32 *)malloc(touched_rule_size);
      if (!touched_rules)
          return NULL;
+     touched_rule_end = touched_rules + (touched_rule_size >> 2);
 
      rule_list_size = 0;
      pattern_list = pattern_list_begin;
      while (pattern_list < pattern_list_end) {
-         memset(touched_rules, 0, rule_count);
+         /* Calculating all touched rules. */
+         memset(touched_rules, 0, touched_rule_size);
          pattern = pattern_list->u2.pattern;
          do {
              same_pattern = pattern;
              do {
-                 if (!touched_rules[same_pattern->rule_index]) {
-                     rule_list_size++;
-                     touched_rules[same_pattern->rule_index] = 1;
-                 }
-                 rule_list_size++;
+                 touched_rules[same_pattern->rule_index >> 5] |= 1 << (same_pattern->rule_index & 0x1f);
                  same_pattern = same_pattern->same_next;
              } while (same_pattern);
              pattern = pattern->next;
-             rule_list_size++;
          } while (pattern);
-         rule_list_size++;
+
+         for (touched_rule_ptr = touched_rules; touched_rule_ptr < touched_rule_end; touched_rule_ptr++)
+             if (*touched_rule_ptr)
+                 rule_list_size += 2 * sizeof(mpm_uint32);
+
+         pattern = pattern_list->u2.pattern;
+         do {
+             memset(touched_rules, 0, touched_rule_size);
+             same_pattern = pattern;
+             do {
+                 touched_rules[same_pattern->rule_index >> 5] |= 1 << (same_pattern->rule_index & 0x1f);
+                 same_pattern = same_pattern->same_next;
+             } while (same_pattern);
+
+             for (touched_rule_ptr = touched_rules; touched_rule_ptr < touched_rule_end; touched_rule_ptr++)
+                 if (*touched_rule_ptr)
+                     rule_list_size += 2 * sizeof(mpm_uint32);
+             pattern = pattern->next;
+         } while (pattern);
+
          pattern_list++;
      }
 
      if (consumed_memory)
-         *consumed_memory = sizeof(mpm_rule_list) + rule_list_size * sizeof(mpm_uint16);
+         *consumed_memory = sizeof(mpm_rule_list) + rule_list_size;
 
-     rule_indices = (mpm_uint16 *)malloc(rule_list_size * sizeof(mpm_uint16));
+     rule_indices = (mpm_uint32 *)malloc(rule_list_size);
      if (!rule_indices) {
          free(touched_rules);
          return NULL;
@@ -229,36 +249,50 @@ static mpm_uint16 * compute_rule_list(pattern_list_item *pattern_list_begin, pat
      rule_index = rule_indices;
      pattern_list = pattern_list_begin;
      while (pattern_list < pattern_list_end) {
-         *rule_index++ = RULE_LIST_END;
-         memset(touched_rules, 0, rule_count);
+         memset(touched_rules, 0, touched_rule_size);
          pattern = pattern_list->u2.pattern;
          priority = 0;
          do {
              same_pattern = pattern;
              do {
-                 if (!touched_rules[same_pattern->rule_index]) {
-                     *rule_index++ = same_pattern->rule_index;
+                 touched_rule_ptr = touched_rules + (same_pattern->rule_index >> 5);
+                 bit_index = 1 << (same_pattern->rule_index & 0x1f);
+                 if (!(*touched_rule_ptr & bit_index))
                      priority++;
-                     touched_rules[same_pattern->rule_index] = 1;
-                 }
+                 *touched_rule_ptr |= bit_index;
                  same_pattern = same_pattern->same_next;
              } while (same_pattern);
              pattern = pattern->next;
          } while (pattern);
+
+         bit_index = 1;
+         for (touched_rule_ptr = touched_rule_end - 1; touched_rule_ptr >= touched_rules; touched_rule_ptr--)
+             if (*touched_rule_ptr) {
+                 *rule_index++ = ((touched_rule_ptr - touched_rules) << 2) | (bit_index ? RULE_LIST_END : 0);
+                 *rule_index++ = *touched_rule_ptr;
+                 bit_index = 0;
+             }
 
          pattern_list->rule_indices = rule_index;
          pattern_list->u1.priority = priority;
+
          pattern = pattern_list->u2.pattern;
          do {
+             memset(touched_rules, 0, touched_rule_size);
              same_pattern = pattern;
              do {
-                 *rule_index++ = same_pattern->rule_index;
+                 touched_rules[same_pattern->rule_index >> 5] |= 1 << (same_pattern->rule_index & 0x1f);
                  same_pattern = same_pattern->same_next;
              } while (same_pattern);
-             pattern = pattern->next;
-             *rule_index++ = pattern ? PATTERN_LIST_END : RULE_LIST_END;
-         } while (pattern);
 
+             for (touched_rule_ptr = touched_rules; touched_rule_ptr < touched_rule_end; touched_rule_ptr++)
+                 if (*touched_rule_ptr) {
+                     *rule_index++ = (touched_rule_ptr - touched_rules) << 2;
+                     *rule_index++ = ~(*touched_rule_ptr);
+                 }
+             pattern = pattern->next;
+             rule_index[-2] |= pattern ? PATTERN_LIST_END : RULE_LIST_END;
+         } while (pattern);
          pattern_list++;
      }
 
@@ -323,34 +357,48 @@ static void heap_sort(pattern_list_item *pattern_list_begin, mpm_size pattern_li
 static void print_pattern_list(pattern_list_item *pattern_list, pattern_list_item *pattern_list_end)
 {
     pattern_data *pattern;
-    mpm_uint16 *rule_indices;
+    mpm_uint32 *rule_indices;
+    mpm_uint32 offset, bits;
     int all_count, mpm_count;
 
     all_count = pattern_list_end - pattern_list;
     mpm_count = 0;
     while (pattern_list < pattern_list_end) {
         pattern = pattern_list->u2.pattern;
-        rule_indices = pattern_list->rule_indices - 1;
+        rule_indices = pattern_list->rule_indices;
         if (pattern->re)
             mpm_count++;
-        printf("\nNew %s pattern. Priority: %d [rules: %d", pattern->re ? "mpm" : "pcre", pattern_list->u1.priority, *rule_indices);
-        while (*(--rule_indices) != RULE_LIST_END)
-            printf(", %d", *rule_indices);
+        printf("\nNew %s pattern. Priority: %d [rules: ", pattern->re ? "mpm" : "pcre", pattern_list->u1.priority);
+        do {
+            rule_indices -= 2;
+            offset = (rule_indices[0] & PATTERN_LIST_MASK) * 8;
+            bits = rule_indices[1];
+            while (bits) {
+                if (bits & 0x1)
+                    printf(" %d", offset);
+                offset++;
+                bits >>= 1;
+            }
+        } while (!(rule_indices[0] & RULE_LIST_END));
         printf("]\n");
 
         rule_indices = pattern_list->rule_indices;
-        printf("  /%s/ in rule %d", pattern->string, *rule_indices++);
-        while (1) {
-            if (*rule_indices == RULE_LIST_END)
-                break;
-            if (*rule_indices == PATTERN_LIST_END) {
-                rule_indices++;
+        printf("  /%s/ in rule", pattern->string);
+        do {
+            offset = (rule_indices[0] & PATTERN_LIST_MASK) * 8;
+            bits = ~(rule_indices[1]);
+            while (bits) {
+                if (bits & 0x1)
+                    printf(" %d", offset);
+                offset++;
+                bits >>= 1;
+            }
+            if (rule_indices[0] & PATTERN_LIST_END) {
                 pattern = pattern->next;
-                printf("\n  /%s/ in rule %d", pattern->string, *rule_indices);
-            } else
-                printf(", %d", *rule_indices);
-            rule_indices++;
-        }
+                printf("\n  /%s/ in rule", pattern->string);
+            }
+            rule_indices += 2;
+        } while (!(rule_indices[-2] & RULE_LIST_END));
         printf("\n");
         pattern_list++;
     }
@@ -371,7 +419,7 @@ int mpm_compile_rules(mpm_rule_pattern *rules, mpm_size no_rule_patterns, mpm_ru
     pattern_data **pattern_hash;
     mpm_rule_list *rule_list;
     pattern_list_item *pattern_reference;
-    mpm_uint16 *rule_indices;
+    mpm_uint32 *rule_indices;
     mpm_size pattern_hash_mask;
     mpm_size rule_count;
     mpm_size last_consumed_memory;
