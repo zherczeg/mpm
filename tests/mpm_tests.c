@@ -22,7 +22,6 @@
  */
 
 #include "mpm.h"
-#include "pcre.h"
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -823,11 +822,6 @@ static void new_feature(void)
 #elif 1
 
     mpm_rule_list *rule_list;
-#if PCRE_MAJOR >= 8 && PCRE_MINOR >= 32
-    void *stack = pcre_jit_stack_alloc(32 * 1024, 512 * 1024);
-#else
-    void *stack = NULL;
-#endif
     mpm_uint32 result[2] = { 0, 0 };
 
     mpm_rule_pattern rules[] = {
@@ -873,71 +867,16 @@ static void new_feature(void)
     char *subject = "RULE_01 RULE_02 RULE_32 RULE_33 RULE_ RULE_35 AbDaBd";
 
     mpm_compile_rules(rules, sizeof(rules) / sizeof(mpm_rule_pattern), &rule_list, NULL, MPM_COMPILE_RULES_VERBOSE | MPM_COMPILE_RULES_VERBOSE_STATS);
-    mpm_exec_list(rule_list, (mpm_char8 *)subject, strlen(subject), 0, result, stack);
+    mpm_exec_list(rule_list, (mpm_char8 *)subject, strlen(subject), 0, result);
     mpm_rule_list_free(rule_list);
 
     printf("\nResult: 0x%x 0x%x\n", result[0], result[1]);
-#if PCRE_MAJOR >= 8 && PCRE_MINOR >= 32
-    pcre_jit_stack_free(stack);
-#endif
-
-#elif 0
-
-    mpm_rule_list *rule_list;
-#if PCRE_MAJOR >= 8 && PCRE_MINOR >= 32
-    void *stack = pcre_jit_stack_alloc(32 * 1024, 512 * 1024);
-#else
-    void *stack = NULL;
-#endif
-    mpm_uint32 *result;
-    mpm_size consumed_memory;
-    clock_t time;
-
-    /* Killer pattern: /.+DELETE.+FROM/Ui"/ */
-    load_rule_list("../../patterns3.txt", 4);
-    load_input("../../input.txt");
-    result = (mpm_uint32 *)malloc(((loaded_rules_size + 31) & ~0x1f) >> 3);
-
-    mpm_compile_rules(loaded_rules, loaded_rules_size, &rule_list, &consumed_memory, MPM_COMPILE_RULES_VERBOSE | MPM_COMPILE_RULES_VERBOSE_STATS);
-    if (!rule_list) {
-        printf("Cannot compile the rule list\n");
-        return;
-    }
-    printf("MPM State machine size: %ld\n", (long)consumed_memory);
-    time = clock();
-    mpm_exec_list(rule_list, (mpm_char8*)input, input_length, 0, result, stack);
-    time = clock() - time;
-    printf("MPM run: %d ms\n", (int)(time * 1000 / (CLOCKS_PER_SEC)));
-    mpm_rule_list_free(rule_list);
-
-    mpm_compile_rules(loaded_rules, loaded_rules_size, &rule_list, &consumed_memory, MPM_COMPILE_RULES_PCRE);
-    if (!rule_list) {
-        printf("Cannot compile the pcre-only rule list\n");
-        return;
-    }
-    printf("PCRE State machine size: %ld\n", (long)consumed_memory);
-    time = clock();
-    mpm_exec_list(rule_list, (mpm_char8*)input, input_length, 0, result, stack);
-    time = clock() - time;
-    printf("PCRE run: %d ms\n", (int)(time * 1000 / (CLOCKS_PER_SEC)));
-    mpm_rule_list_free(rule_list);
-
-    free(result);
-#if PCRE_MAJOR >= 8 && PCRE_MINOR >= 32
-    pcre_jit_stack_free(stack);
-#endif
 
 #elif 0
 
 #include "../../uri/patterns.txt"
 
     mpm_rule_list *rule_list;
-#if PCRE_MAJOR >= 8 && PCRE_MINOR >= 32
-    void *stack = pcre_jit_stack_alloc(32 * 1024, 512 * 1024);
-#else
-    void *stack = NULL;
-#endif
-    mpm_uint32 *result;
     mpm_size consumed_memory;
 
     printf("Processing %d rules:\n", sizeof(rules_global) / sizeof(mpm_rule_pattern));

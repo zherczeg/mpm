@@ -125,16 +125,11 @@ struct pattern_data;
 /* Each pattern set contains an mpm_re or a pcre pattern. */
 typedef struct pattern_list_item {
     mpm_uint32 *rule_indices;
-    union {
-        mpm_uint32 priority;
-        void *pcre;
-    } u1;
+    mpm_uint32 priority;
     union {
         struct pattern_data *pattern;
         mpm_re *re;
-        void *pcre_extra;
-        mpm_uint32 flags;
-    } u2;
+    } u1;
 } pattern_list_item;
 
 struct mpm_rule_list_internal {
@@ -164,8 +159,6 @@ struct mpm_rule_list_internal {
 /* Private, shared functions. */
 int mpm_private_rating(mpm_re_pattern *pattern);
 void mpm_private_free_patterns(mpm_re_pattern *pattern);
-mpm_size mpm_private_compile_pcre(pattern_list_item *item);
-void mpm_private_free_pcre(pattern_list_item *item);
 mpm_size mpm_private_get_pattern_size(mpm_re_pattern *pattern);
 
 #if defined MPM_VERBOSE && MPM_VERBOSE

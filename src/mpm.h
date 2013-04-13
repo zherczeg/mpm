@@ -278,14 +278,12 @@ typedef struct mpm_rule_pattern {
     mpm_uint32 flags;      /*!< Any combination of MPM_ADD_ and MPM_RULE_ flags. */
 } mpm_rule_pattern;
 
-  /*! All non-fixed string patterns are compiled by pcre. */
-#define MPM_COMPILE_RULES_PCRE          0x001
   /*  This flag is ignored if MPM_VERBOSE is undefined. */
   /*! Verbose the operations of mpm_compile_rules. */
-#define MPM_COMPILE_RULES_VERBOSE       0x002
+#define MPM_COMPILE_RULES_VERBOSE       0x001
   /*  This flag is ignored if MPM_VERBOSE is undefined. */
   /*! Display some statistics (e.g: memory consumption) about the compiled patterns. */
-#define MPM_COMPILE_RULES_VERBOSE_STATS 0x004
+#define MPM_COMPILE_RULES_VERBOSE_STATS 0x002
 
 /*! Private representation of a regular expression set. */
 struct mpm_rule_list_internal;
@@ -313,7 +311,7 @@ void mpm_rule_list_free(mpm_rule_list *rule_list);
  *  \param rule_list a list returned by mpm_compile_rules
  */
 
-int mpm_exec_list(mpm_rule_list *rule_list, mpm_char8 *subject, mpm_size length, mpm_size offset, mpm_uint32 *result, void *pcre_stack);
+int mpm_exec_list(mpm_rule_list *rule_list, mpm_char8 *subject, mpm_size length, mpm_size offset, mpm_uint32 *result);
 
 /*! \fn int mpm_exec_list(mpm_rule_list *rule_list, mpm_char8 *subject, mpm_size length, mpm_size offset, mpm_uint32 *result);
  *  \brief Matches the compiled rule list to the subject string.

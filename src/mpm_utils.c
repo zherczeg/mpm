@@ -68,10 +68,8 @@ void mpm_rule_list_free(mpm_rule_list *rule_list)
     pattern_list_item *pattern_list = rule_list->pattern_list;
     pattern_list_item *pattern_list_end = pattern_list + rule_list->pattern_list_length;
     while (pattern_list < pattern_list_end) {
-        if (pattern_list->u1.pcre)
-            mpm_private_free_pcre(pattern_list);
-        else if (pattern_list->u2.re)
-            mpm_free(pattern_list->u2.re);
+        if (pattern_list->u1.re)
+            mpm_free(pattern_list->u1.re);
         pattern_list++;
     }
 

@@ -237,29 +237,21 @@ mpm_re * mpm_dummy_re(void)
     return &re;
 }
 
-/* A working PCRE is required from here.  */
-#include "pcre.h"
-
 /* Offsets are stored as byte offsets, because shifting requires an extra instruction on many CPUs. */
 #define RESULT(offset) (*(mpm_uint32 *)(((mpm_uint8 *)result) + ((offset) & PATTERN_LIST_MASK)))
 
-int mpm_exec_list(mpm_rule_list *rule_list, mpm_char8 *subject, mpm_size length, mpm_size offset, mpm_uint32 *result, void *pcre_stack)
+int mpm_exec_list(mpm_rule_list *rule_list, mpm_char8 *subject, mpm_size length, mpm_size offset, mpm_uint32 *result)
 {
-    /* A complex matching algortihm with several gotos. */
     pattern_list_item *next_pattern = rule_list->pattern_list;
-    pattern_list_item *next_re_pattern = next_pattern;
     pattern_list_item *last_pattern = next_pattern + rule_list->pattern_list_length;
     mpm_re *re_list[4];
-    pattern_list_item *pattern_list[4];
-    pattern_list_item **pattern_list_last;
-    pattern_list_item **pattern_list_next;
+    pattern_list_item *pattern_list_last;
     mpm_uint32 re_result[4];
     mpm_uint32 *re_result_next;
     mpm_uint32 result_bits;
     mpm_re *dummy_re = mpm_dummy_re();
     mpm_uint32 *rule_indices;
     mpm_uint32 rule_offset;
-    int ovector[32];
 
     switch (rule_list->result_length) {
     case 0:
@@ -283,170 +275,53 @@ int mpm_exec_list(mpm_rule_list *rule_list, mpm_char8 *subject, mpm_size length,
         break;
     }
 
-mainloop:
-    while (1) {
-        if (next_pattern >= last_pattern)
-            return MPM_NO_ERROR;
-
-        if (next_pattern->u1.pcre || next_pattern >= next_re_pattern) {
-            rule_indices = next_pattern->rule_indices - 2;
-            do {
-                rule_offset = rule_indices[0];
-                if (RESULT(rule_offset) & rule_indices[1]) {
-                    if (next_pattern->u1.pcre)
-                        goto pcre_match;
-                    goto re_match;
-                }
-                rule_indices -= 2;
-            } while (!(rule_offset & RULE_LIST_END));
+    do {
+        /* The first case should be the most frequent. */
+        if (next_pattern + 4 <= last_pattern) {
+            re_list[0] = next_pattern[0].u1.re;
+            re_list[1] = next_pattern[1].u1.re;
+            re_list[2] = next_pattern[2].u1.re;
+            re_list[3] = next_pattern[3].u1.re;
+            mpm_exec4(re_list, subject, length, offset, re_result);
+            pattern_list_last = next_pattern + 4;
+        } else if (next_pattern + 2 <= last_pattern) {
+            re_list[0] = next_pattern[0].u1.re;
+            re_list[1] = next_pattern[1].u1.re;
+            re_list[2] = (next_pattern + 2 < last_pattern) ? next_pattern[2].u1.re : dummy_re;
+            re_list[3] = (next_pattern + 3 < last_pattern) ? next_pattern[3].u1.re : dummy_re;
+            mpm_exec4(re_list, subject, length, offset, re_result);
+            pattern_list_last = last_pattern;
+        } else {
+            mpm_exec(next_pattern->u1.re, subject, length, offset, re_result);
+            pattern_list_last = last_pattern;
         }
-        next_pattern++;
-    }
 
-re_match:
-    /* Searching at most 4 other patterns. */
-    next_re_pattern = next_pattern + 1;
-    pattern_list[0] = next_pattern;
-    pattern_list_last = pattern_list + 1;
-    next_pattern++;
-
-    while (1) {
-        if (next_re_pattern >= last_pattern)
-            break;
-
-        if (!next_re_pattern->u1.pcre) {
-            rule_indices = next_pattern->rule_indices - 2;
-            do {
-                rule_offset = rule_indices[0];
-                if (RESULT(rule_offset) & rule_indices[1]) {
-                    *pattern_list_last++ = next_re_pattern;
-                    if (pattern_list_last >= pattern_list + 4) {
-                        /* Should not be increased after we found a pcre pattern. */
-                        if (!next_pattern->u1.pcre)
-                            next_pattern++;
-                        next_re_pattern++;
-                        goto re_list_full;
-                    }
-                    /* No need to add this rule multiple times. */
+        re_result_next = re_result;
+        do {
+            result_bits = *re_result_next++;
+            rule_indices = next_pattern->rule_indices;
+            while (1) {
+                if (result_bits & 0x1) {
+                    do {
+                        rule_offset = rule_indices[0];
+                        rule_indices += 2;
+                    } while (!(rule_offset & (PATTERN_LIST_END | RULE_LIST_END)));
+                } else {
+                    do {
+                        rule_offset = rule_indices[0];
+                        RESULT(rule_offset) &= rule_indices[1];
+                        rule_indices += 2;
+                    } while (!(rule_offset & (PATTERN_LIST_END | RULE_LIST_END)));
+                }
+                if (rule_offset & RULE_LIST_END)
                     break;
-                }
-                rule_indices -= 2;
-            } while (!(rule_offset & RULE_LIST_END));
-        }
-        /* Should not be increased after we found a pcre pattern. */
-        if (!next_pattern->u1.pcre)
-            next_pattern++;
-        next_re_pattern++;
-    }
-re_list_full:
-
-    if (pattern_list_last == pattern_list + 1) {
-        mpm_exec(pattern_list[0]->u2.re, subject, length, offset, re_result);
-    } else {
-        re_list[0] = pattern_list[0]->u2.re;
-        re_list[1] = pattern_list[1]->u2.re;
-        re_list[2] = (pattern_list_last > pattern_list + 2) ? pattern_list[2]->u2.re : dummy_re;
-        re_list[3] = (pattern_list_last > pattern_list + 3) ? pattern_list[3]->u2.re : dummy_re;
-        mpm_exec4(re_list, subject, length, offset, re_result);
-    }
-
-    pattern_list_next = pattern_list;
-    re_result_next = re_result;
-    while (1) {
-        result_bits = *re_result_next++;
-        rule_indices = pattern_list_next[0]->rule_indices;
-        while (1) {
-            if (result_bits & 0x1) {
-                do {
-                    rule_offset = rule_indices[0];
-                    rule_indices += 2;
-                } while (!(rule_offset & (PATTERN_LIST_END | RULE_LIST_END)));
-            } else {
-                do {
-                    rule_offset = rule_indices[0];
-                    RESULT(rule_offset) &= rule_indices[1];
-                    rule_indices += 2;
-                } while (!(rule_offset & (PATTERN_LIST_END | RULE_LIST_END)));
+                result_bits >>= 1;
             }
-            if (rule_offset & RULE_LIST_END)
-                break;
-            result_bits >>= 1;
-        }
+            next_pattern++;
+        } while (next_pattern < pattern_list_last);
+    } while (next_pattern < last_pattern);
 
-        pattern_list_next++;
-        if (pattern_list_next >= pattern_list_last)
-            goto mainloop;
-    }
-
-pcre_match:
-    /* The rule_offset is only used for zero testing. */
-#if PCRE_MAJOR >= 8 && PCRE_MINOR >= 32
-    if (next_pattern->u2.pcre_extra && (((struct pcre_extra *)next_pattern->u2.pcre_extra)->flags & PCRE_EXTRA_EXECUTABLE_JIT))
-        rule_offset = pcre_jit_exec((const pcre *)next_pattern->u1.pcre, (pcre_extra *)next_pattern->u2.pcre_extra,
-            (const char *)subject, (int)length, (int)offset, 0, ovector, 32, (pcre_jit_stack *)pcre_stack) >= 0;
-    else
-        rule_offset = pcre_exec((const pcre *)next_pattern->u1.pcre, (pcre_extra *)next_pattern->u2.pcre_extra,
-            (const char *)subject, (int)length, (int)offset, 0, ovector, 32) >= 0;
-#else
-    rule_offset = pcre_exec((const pcre *)next_pattern->u1.pcre, (pcre_extra *)next_pattern->u2.pcre_extra,
-        (const char *)subject, (int)length, (int)offset, 0, ovector, 32) >= 0;
-#endif
-
-    next_pattern++;
-    if (rule_offset)
-        goto mainloop;
-
-    rule_indices = next_pattern[-1].rule_indices;
-    while (1) {
-        rule_offset = rule_indices[0];
-        RESULT(rule_offset) &= rule_indices[1];
-        if (rule_offset & RULE_LIST_END)
-            goto mainloop;
-        rule_indices += 2;
-    }
+    return MPM_NO_ERROR;
 }
 
 #undef RESULT
-
-mpm_size mpm_private_compile_pcre(pattern_list_item *item)
-{
-    int options = 0;
-    const char *errptr;
-    int erroffset;
-
-    if (item->u2.flags & MPM_ADD_CASELESS)
-        options |= PCRE_CASELESS;
-    if (item->u2.flags & MPM_ADD_MULTILINE)
-        options |= PCRE_MULTILINE;
-    if (item->u2.flags & MPM_ADD_ANCHORED)
-        options |= PCRE_ANCHORED;
-    if (item->u2.flags & MPM_ADD_DOTALL)
-        options |= PCRE_DOTALL;
-    if (item->u2.flags & MPM_ADD_EXTENDED)
-        options |= PCRE_EXTENDED;
-
-    item->u1.pcre = pcre_compile((const char *)item->u1.pcre, options, &errptr, &erroffset, NULL);
-    item->u2.pcre_extra = NULL;
-    if (!item->u1.pcre)
-        return 1;
-
-#if PCRE_MAJOR >= 8 && PCRE_MINOR >= 32
-    item->u2.pcre_extra = pcre_study((const pcre *)item->u1.pcre, PCRE_STUDY_JIT_COMPILE, &errptr);
-#else
-    item->u2.pcre_extra = pcre_study((const pcre *)item->u1.pcre, 0, &errptr);
-#endif
-    return 0;
-}
-
-void mpm_private_free_pcre(pattern_list_item *item)
-{
-    if (item->u1.pcre)
-        pcre_free(item->u1.pcre);
-#if PCRE_MAJOR >= 8 && PCRE_MINOR >= 32
-    if (item->u2.pcre_extra)
-        pcre_free_study((pcre_extra *)item->u2.pcre_extra);
-#else
-    if (item->u2.pcre_extra)
-        pcre_free(item->u2.pcre_extra);
-#endif
-}
