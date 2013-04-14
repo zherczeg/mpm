@@ -411,6 +411,8 @@ static void print_pattern_list(pattern_list_item *pattern_list, pattern_list_ite
 /*                                 Main function.                          */
 /* ----------------------------------------------------------------------- */
 
+static int mpm_private_get_byte_code(mpm_byte_code **byte_code, mpm_char8 *pattern, mpm_uint32 flags);
+
 int mpm_compile_rules(mpm_rule_pattern *rules, mpm_size no_rule_patterns, mpm_rule_list **result_rule_list, mpm_size *consumed_memory, mpm_uint32 flags)
 {
     pattern_data *pattern_list;
@@ -425,6 +427,7 @@ int mpm_compile_rules(mpm_rule_pattern *rules, mpm_size no_rule_patterns, mpm_ru
     mpm_size last_consumed_memory;
     mpm_size pattern_list_length;
     mpm_rule_pattern *rules_end;
+    mpm_byte_code *byte_code;
     mpm_re *re;
     int result;
 
@@ -480,18 +483,17 @@ int mpm_compile_rules(mpm_rule_pattern *rules, mpm_size no_rule_patterns, mpm_ru
         pattern_list_end->string = rules->pattern;
         pattern_list_end->re = NULL;
 
-        result = mpm_add(re, rules->pattern, pattern_list_end->flags | MPM_ADD_TEST_RATING);
-
-        switch (result) {
+        switch (mpm_add(re, rules->pattern, pattern_list_end->flags | MPM_ADD_TEST_RATING)) {
         case MPM_NO_ERROR:
             pattern_list_end->re = re;
             pattern_list_end->length = mpm_private_get_pattern_size(re->compile.patterns) - sizeof(mpm_re_pattern) + sizeof(mpm_uint32);
             pattern_list_end->hash = compute_hash((mpm_uint8 *)re->compile.patterns->word_code, pattern_list_end->length);
 
+            result = mpm_private_get_byte_code(&byte_code, rules->pattern, pattern_list_end->flags);
+
             /* Check whether it is already there. */
             insert_pattern(pattern_list_end, pattern_hash + (pattern_list_end->hash & pattern_hash_mask));
             pattern_list_end++;
-
             re = NULL;
             break;
 
@@ -597,3 +599,5 @@ int mpm_compile_rules(mpm_rule_pattern *rules, mpm_size no_rule_patterns, mpm_ru
     *result_rule_list = rule_list;
     return MPM_NO_ERROR;
 }
+
+#include "mpm_byte_code.c"

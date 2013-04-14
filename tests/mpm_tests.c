@@ -879,7 +879,7 @@ static void new_feature(void)
     mpm_rule_list *rule_list;
     mpm_size consumed_memory;
 
-    printf("Processing %d rules:\n", sizeof(rules_global) / sizeof(mpm_rule_pattern));
+    printf("Processing %d rules:\n", (int)(sizeof(rules_global) / sizeof(mpm_rule_pattern)));
 
     mpm_compile_rules(rules_global, sizeof(rules_global) / sizeof(mpm_rule_pattern), &rule_list, &consumed_memory, MPM_COMPILE_RULES_VERBOSE /*| MPM_COMPILE_RULES_VERBOSE_STATS*/);
 

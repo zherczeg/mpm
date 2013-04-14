@@ -122,7 +122,7 @@ struct mpm_re_internal {
 
 struct pattern_data;
 
-/* Each pattern set contains an mpm_re or a pcre pattern. */
+/* Each pattern set contains an mpm_re pattern. */
 typedef struct pattern_list_item {
     mpm_uint32 *rule_indices;
     mpm_uint32 priority;
@@ -140,6 +140,18 @@ struct mpm_rule_list_internal {
     mpm_uint32 result_last_word;
     pattern_list_item pattern_list[1];
 };
+
+typedef struct mpm_byte_code_data {
+    mpm_uint32 byte_code_length;
+    mpm_uint32 pattern_offset;
+    mpm_uint32 pattern_length;
+} mpm_byte_code_data;
+
+typedef struct mpm_byte_code {
+    mpm_uint8 *byte_code;
+    mpm_uint32 byte_code_length;
+    mpm_byte_code_data byte_code_data[1];
+} mpm_byte_code;
 
 #define CHARSET_CLEAR(set)          memset((set), 0x00, 32)
 #define CHARSET_SET(set)            memset((set), 0xff, 32)
