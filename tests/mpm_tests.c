@@ -788,7 +788,7 @@ static void new_feature(void)
         { (mpm_char8 *)"(eee)?x?y?z?ghi", MPM_RULE_NEW },
 #endif
     };
-    char *subject = "RULE_01 RULE_02 RULE_32 RULE_33 RULE_ RULE_35 AbDaBd";
+    char *subject = "bbbbdxyz h";
 
     error_code = mpm_compile_rules(rules, sizeof(rules) / sizeof(mpm_rule_pattern), &rule_list, NULL, MPM_COMPILE_RULES_VERBOSE | MPM_COMPILE_RULES_VERBOSE_STATS);
     printf("mpm_compile_rules: %s\n", mpm_error_to_string(error_code));

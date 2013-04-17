@@ -123,10 +123,7 @@ struct mpm_re_internal {
 /* Each pattern set contains an mpm_re pattern. */
 typedef struct pattern_list_item {
     mpm_uint32 *rule_indices;
-    mpm_uint32 priority;
-    union {
-        mpm_re *re;
-    } u1;
+    mpm_re *re;
 } pattern_list_item;
 
 struct mpm_rule_list_internal {

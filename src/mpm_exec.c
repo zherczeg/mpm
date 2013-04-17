@@ -278,21 +278,21 @@ int mpm_exec_list(mpm_rule_list *rule_list, mpm_char8 *subject, mpm_size length,
     do {
         /* The first case should be the most frequent. */
         if (next_pattern + 4 <= last_pattern) {
-            re_list[0] = next_pattern[0].u1.re;
-            re_list[1] = next_pattern[1].u1.re;
-            re_list[2] = next_pattern[2].u1.re;
-            re_list[3] = next_pattern[3].u1.re;
+            re_list[0] = next_pattern[0].re;
+            re_list[1] = next_pattern[1].re;
+            re_list[2] = next_pattern[2].re;
+            re_list[3] = next_pattern[3].re;
             mpm_exec4(re_list, subject, length, offset, re_result);
             pattern_list_last = next_pattern + 4;
         } else if (next_pattern + 2 <= last_pattern) {
-            re_list[0] = next_pattern[0].u1.re;
-            re_list[1] = next_pattern[1].u1.re;
-            re_list[2] = (next_pattern + 2 < last_pattern) ? next_pattern[2].u1.re : dummy_re;
-            re_list[3] = (next_pattern + 3 < last_pattern) ? next_pattern[3].u1.re : dummy_re;
+            re_list[0] = next_pattern[0].re;
+            re_list[1] = next_pattern[1].re;
+            re_list[2] = (next_pattern + 2 < last_pattern) ? next_pattern[2].re : dummy_re;
+            re_list[3] = (next_pattern + 3 < last_pattern) ? next_pattern[3].re : dummy_re;
             mpm_exec4(re_list, subject, length, offset, re_result);
             pattern_list_last = last_pattern;
         } else {
-            mpm_exec(next_pattern->u1.re, subject, length, offset, re_result);
+            mpm_exec(next_pattern->re, subject, length, offset, re_result);
             pattern_list_last = last_pattern;
         }
 
