@@ -771,104 +771,26 @@ static void new_feature(void)
 
     mpm_compile(re, NULL, MPM_COMPILE_VERBOSE_STATS);
 
-#elif 0
-
-    mpm_rule_list *rule_list;
-
-    mpm_rule_pattern rules[] = {
-        /* Rule 0 */
-        { (mpm_char8 *)"abc{2}", MPM_RULE_NEW | MPM_ADD_CASELESS },
-        { (mpm_char8 *)"a*b", 0 },
-
-        /* Rule 1 */
-        { (mpm_char8 *)"abcc", MPM_RULE_NEW | MPM_ADD_CASELESS },
-        { (mpm_char8 *)"a*b", 0 },
-        { (mpm_char8 *)"(a)\\1", 0 },
-
-        /* Rule 2 */
-        { (mpm_char8 *)"(a)\\1", MPM_RULE_NEW },
-        { (mpm_char8 *)"V.e.r.y long pattern #########.#########.A", 0 },
-        { (mpm_char8 *)"(?=a)aa", 0 },
-
-        /* Rule 3 */
-        { (mpm_char8 *)"evil.+software", MPM_RULE_NEW | MPM_ADD_DOTALL },
-        { (mpm_char8 *)"Rule#1", MPM_ADD_FIXED(6) },
-        { (mpm_char8 *)"Rule#2", MPM_ADD_FIXED(6) },
-        { (mpm_char8 *)"Rule#3", MPM_ADD_FIXED(6) },
-        { (mpm_char8 *)"Rule#4", MPM_ADD_FIXED(6) },
-
-        /* Rule 4 */
-        { (mpm_char8 *)"evil..*software", MPM_RULE_NEW | MPM_ADD_DOTALL },
-        { (mpm_char8 *)"V.e.r.y long pattern #########.#########.B", 0 },
-        { (mpm_char8 *)"Rule#2", MPM_ADD_FIXED(6) },
-        { (mpm_char8 *)"Rule#3", MPM_ADD_FIXED(6) },
-        { (mpm_char8 *)"Rule#4", MPM_ADD_FIXED(6) },
-        { (mpm_char8 *)"Rule#5", MPM_ADD_FIXED(6) },
-        { (mpm_char8 *)"Rule#6", MPM_ADD_FIXED(6) },
-        { (mpm_char8 *)"(?=a)aa", 0 },
-
-        /* Rule 5 */
-        { (mpm_char8 *)"12345678901234567890123456789012345678901234567890", MPM_RULE_NEW | MPM_ADD_DOTALL },
-        { (mpm_char8 *)"V.e.r.y long pattern #########.#########.B", 0 },
-        { (mpm_char8 *)"Rule#5", MPM_ADD_FIXED(6) },
-        { (mpm_char8 *)"Rule#6", MPM_ADD_FIXED(6) },
-        { (mpm_char8 *)"Rule#7", MPM_ADD_FIXED(6) },
-        { (mpm_char8 *)"Rule#8", MPM_ADD_FIXED(6) },
-    };
-
-    mpm_compile_rules(rules, sizeof(rules) / sizeof(mpm_rule_pattern), &rule_list, NULL, MPM_COMPILE_RULES_VERBOSE);
-    mpm_rule_list_free(rule_list);
-
 #elif 1
 
     mpm_rule_list *rule_list;
     mpm_uint32 result[2] = { 0, 0 };
+    int error_code;
 
     mpm_rule_pattern rules[] = {
-        { (mpm_char8 *)"RULE_01", MPM_RULE_NEW },
-        { (mpm_char8 *)"RULE_02", MPM_RULE_NEW },
-        { (mpm_char8 *)"RULE_03", MPM_RULE_NEW },
-        { (mpm_char8 *)"RULE_04", MPM_RULE_NEW },
-        { (mpm_char8 *)"RULE_05", MPM_RULE_NEW },
-        { (mpm_char8 *)"RULE_06", MPM_RULE_NEW },
-        { (mpm_char8 *)"RULE_07", MPM_RULE_NEW },
-        { (mpm_char8 *)"RULE_08", MPM_RULE_NEW },
-        { (mpm_char8 *)"RULE_09", MPM_RULE_NEW },
-        { (mpm_char8 *)"RULE_10", MPM_RULE_NEW },
-        { (mpm_char8 *)"RULE_11", MPM_RULE_NEW },
-        { (mpm_char8 *)"RULE_12", MPM_RULE_NEW },
-        { (mpm_char8 *)"RULE_13", MPM_RULE_NEW },
-        { (mpm_char8 *)"RULE_14", MPM_RULE_NEW },
-        { (mpm_char8 *)"RULE_15", MPM_RULE_NEW },
-        { (mpm_char8 *)"RULE_16", MPM_RULE_NEW },
-        { (mpm_char8 *)"RULE_17", MPM_RULE_NEW },
-        { (mpm_char8 *)"RULE_18", MPM_RULE_NEW },
-        { (mpm_char8 *)"RULE_19", MPM_RULE_NEW },
-        { (mpm_char8 *)"RULE_20", MPM_RULE_NEW },
-        { (mpm_char8 *)"RULE_21", MPM_RULE_NEW },
-        { (mpm_char8 *)"RULE_22", MPM_RULE_NEW },
-        { (mpm_char8 *)"RULE_23", MPM_RULE_NEW },
-        { (mpm_char8 *)"RULE_24", MPM_RULE_NEW },
-        { (mpm_char8 *)"RULE_25", MPM_RULE_NEW },
-        { (mpm_char8 *)"RULE_26", MPM_RULE_NEW },
-        { (mpm_char8 *)"RULE_27", MPM_RULE_NEW },
-        { (mpm_char8 *)"RULE_28", MPM_RULE_NEW },
-        { (mpm_char8 *)"RULE_29", MPM_RULE_NEW },
-        { (mpm_char8 *)"RULE_30", MPM_RULE_NEW },
-        { (mpm_char8 *)"RULE_31", MPM_RULE_NEW },
-        { (mpm_char8 *)"RULE_32", MPM_RULE_NEW },
-        { (mpm_char8 *)"RULE_33", MPM_RULE_NEW },
-        { (mpm_char8 *)"RULE_34", MPM_RULE_NEW },
-        { (mpm_char8 *)"RULE_35", MPM_RULE_NEW },
-        { (mpm_char8 *)"RULE_36", MPM_RULE_NEW },
-        { (mpm_char8 *)"(ab+c)\\1", MPM_RULE_NEW | MPM_ADD_CASELESS },
-        { (mpm_char8 *)"(ab+d)\\1", MPM_RULE_NEW | MPM_ADD_CASELESS },
+        { (mpm_char8 *)"ab{4,17}c*d+xyz|h", MPM_RULE_NEW },
+        { (mpm_char8 *)"ab{4,17}c*d+xyz", MPM_RULE_NEW },
+        { (mpm_char8 *)"(cccc|dddd){4,8}b{4,17}c*d+xyze{4,}", MPM_RULE_NEW },
+        { (mpm_char8 *)"(ccc)*(ddd)+(eee)?xyz", MPM_RULE_NEW },
     };
     char *subject = "RULE_01 RULE_02 RULE_32 RULE_33 RULE_ RULE_35 AbDaBd";
 
-    mpm_compile_rules(rules, sizeof(rules) / sizeof(mpm_rule_pattern), &rule_list, NULL, MPM_COMPILE_RULES_VERBOSE | MPM_COMPILE_RULES_VERBOSE_STATS);
-    mpm_exec_list(rule_list, (mpm_char8 *)subject, strlen(subject), 0, result);
-    mpm_rule_list_free(rule_list);
+    error_code = mpm_compile_rules(rules, sizeof(rules) / sizeof(mpm_rule_pattern), &rule_list, NULL, MPM_COMPILE_RULES_VERBOSE | MPM_COMPILE_RULES_VERBOSE_STATS);
+    printf("mpm_compile_rules: %s\n", mpm_error_to_string(error_code));
+    if (rule_list) {
+        mpm_exec_list(rule_list, (mpm_char8 *)subject, strlen(subject), 0, result);
+        mpm_rule_list_free(rule_list);
+    }
 
     printf("\nResult: 0x%x 0x%x\n", result[0], result[1]);
 
@@ -881,7 +803,7 @@ static void new_feature(void)
 
     printf("Processing %d rules:\n", (int)(sizeof(rules_global) / sizeof(mpm_rule_pattern)));
 
-    mpm_compile_rules(rules_global, sizeof(rules_global) / sizeof(mpm_rule_pattern), &rule_list, &consumed_memory, MPM_COMPILE_RULES_VERBOSE /*| MPM_COMPILE_RULES_VERBOSE_STATS*/);
+    mpm_compile_rules(rules_global, sizeof(rules_global) / sizeof(mpm_rule_pattern), &rule_list, &consumed_memory, MPM_COMPILE_RULES_VERBOSE | MPM_COMPILE_RULES_VERBOSE_STATS);
 
     printf("MPM State machine size: %ld\n", (long)consumed_memory);
 

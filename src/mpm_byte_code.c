@@ -73,13 +73,14 @@ static int mpm_private_get_byte_code(mpm_byte_code **byte_code, mpm_char8 *patte
     REAL_PCRE *real_pcre_re;
     REAL_PCRE *instrumented_pcre_re;
     const char *errptr;
-    int error, no_callout, length;
+    int error, callout, special, length;
     mpm_char8 *fixed = NULL;
     mpm_char8 *fixed_ptr;
     mpm_char8 *pattern_ptr;
     pcre_uchar *real_byte_code;
     pcre_uchar *instrumented_byte_code;
     pcre_uchar *byte_code_end;
+    pcre_uchar *byte_code_start;
     mpm_uint32 fixed_size;
     mpm_uint32 pattern_length;
     mpm_uint32 byte_code_length;
@@ -163,6 +164,8 @@ static int mpm_private_get_byte_code(mpm_byte_code **byte_code, mpm_char8 *patte
     }
 
     (*byte_code)->byte_code_length = byte_code_length;
+    (*byte_code)->pattern = pattern;
+    (*byte_code)->flags = flags;
     byte_code_data_ptr = (*byte_code)->byte_code_data;
     pattern_ptr = (mpm_uint8 *)(byte_code_data_ptr + byte_code_length);
     (*byte_code)->byte_code = pattern_ptr;
@@ -173,13 +176,17 @@ static int mpm_private_get_byte_code(mpm_byte_code **byte_code, mpm_char8 *patte
     byte_code_data_ptr->pattern_offset = 0;
     byte_code_data_ptr->pattern_length = fixed_size ? fixed_size : strlen((char *)pattern);
 
-    real_byte_code += 1 + LINK_SIZE;
+    if (real_byte_code[GET(real_byte_code, 1)] == OP_ALT)
+        real_byte_code = byte_code_end;
+    else
+        real_byte_code += 1 + LINK_SIZE;
     instrumented_byte_code += 1 + LINK_SIZE;
     byte_code_data_ptr += 1 + LINK_SIZE;
 
     while (real_byte_code < byte_code_end) {
         length = PRIV(OP_lengths)[*real_byte_code];
-        no_callout = 0;
+        callout = 1;
+        special = 0;
 
         switch (*real_byte_code) {
         case OP_NOT_DIGIT:
@@ -273,31 +280,38 @@ static int mpm_private_get_byte_code(mpm_byte_code **byte_code, mpm_char8 *patte
 
         case OP_BRAZERO:
         case OP_BRAMINZERO:
-            length += PRIV(OP_lengths)[*(real_byte_code + 1)];
+            length = PRIV(OP_lengths)[*(real_byte_code + 1)];
             if (real_byte_code[1] != OP_BRA && real_byte_code[1] != OP_SBRA) {
                 error = MPM_UNSUPPORTED_PATTERN;
                 goto leave;
             }
             byte_code_data_ptr->byte_code_length = get_bracket_end(real_byte_code + 1) - real_byte_code;
+            special = 2;
             break;
 
         case OP_BRA:
             byte_code_data_ptr->byte_code_length = get_bracket_size(real_byte_code, instrumented_byte_code);
+            special = 1;
             break;
 
         case OP_SBRA:
             byte_code_data_ptr->byte_code_length = get_bracket_end(real_byte_code) - real_byte_code;
+            special = 1;
             break;
 
         case OP_KET:
-            no_callout = 2;
+            special = 3;
+            callout = 0;
+            break;
+
+        case OP_KETRMAX:
+        case OP_KETRMIN:
+            callout = 0;
             break;
 
         case OP_ALT:
-        case OP_KETRMAX:
-        case OP_KETRMIN:
-            no_callout = 1;
-            break;
+            error = MPM_INTERNAL_ERROR;
+            goto leave;
 
         default:
             error = MPM_UNSUPPORTED_PATTERN;
@@ -310,7 +324,7 @@ static int mpm_private_get_byte_code(mpm_byte_code **byte_code, mpm_char8 *patte
         }
 
         pattern_length = GET(instrumented_byte_code, 2 + LINK_SIZE);
-        if (!no_callout) {
+        if (callout) {
             byte_code_data_ptr->pattern_offset = GET(instrumented_byte_code, 2);
             byte_code_data_ptr->pattern_length = pattern_length;
             if (fixed_size) {
@@ -321,16 +335,30 @@ static int mpm_private_get_byte_code(mpm_byte_code **byte_code, mpm_char8 *patte
         }
         instrumented_byte_code += 2 + 2 * LINK_SIZE;
 
-        if ((real_byte_code[0] != instrumented_byte_code[0]) || (!no_callout && !pattern_length) || (no_callout && pattern_length)) {
+        if ((real_byte_code[0] != instrumented_byte_code[0]) || (callout && !pattern_length) || (!callout && pattern_length)) {
             error = MPM_INTERNAL_ERROR;
             goto leave;
         }
 
-        real_byte_code += length;
-        instrumented_byte_code += length;
-        byte_code_data_ptr += length;
+        if (special == 2) {
+            real_byte_code += 1;
+            instrumented_byte_code += 1;
+            byte_code_data_ptr += 1;
+        }
 
-        if (no_callout == 2) {
+        if ((special == 1 && real_byte_code[GET(real_byte_code, 1)] == OP_ALT) || special == 2) {
+            byte_code_start = real_byte_code;
+            real_byte_code = get_bracket_end(real_byte_code) - (1 + LINK_SIZE);
+            instrumented_byte_code = get_bracket_end(instrumented_byte_code) - (1 + LINK_SIZE + 2 + 2 * LINK_SIZE);
+            byte_code_data_ptr += real_byte_code - byte_code_start;
+        } else {
+            real_byte_code += length;
+            instrumented_byte_code += length;
+            byte_code_data_ptr += length;
+        }
+
+        if (special == 3) {
+            byte_code_start = real_byte_code;
             while (instrumented_byte_code[0] == OP_BRA && real_byte_code[0] == OP_BRA) {
                 real_byte_code = get_bracket_end(real_byte_code);
                 instrumented_byte_code = get_bracket_end(instrumented_byte_code);
@@ -345,6 +373,7 @@ static int mpm_private_get_byte_code(mpm_byte_code **byte_code, mpm_char8 *patte
                 real_byte_code = get_bracket_end(real_byte_code + 1);
                 instrumented_byte_code = get_bracket_end(instrumented_byte_code + 1);
             }
+            byte_code_data_ptr += real_byte_code - byte_code_start;
         }
     }
 
@@ -357,5 +386,6 @@ leave:
     mpm_pcre_free((pcre *)instrumented_pcre_re);
     if (*byte_code)
         free(*byte_code);
+    *byte_code = NULL;
     return error;
 }

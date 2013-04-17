@@ -25,34 +25,97 @@
 #include "mpm_pcre_internal.h"
 
 /* ----------------------------------------------------------------------- */
-/*                             Utility functions.                          */
+/*                          Defines and structures.                        */
 /* ----------------------------------------------------------------------- */
 
-/* Patterns whose are part of other pattern chain lists. */
-#define SUB_PATTERN                     MPM_RULE_NEW
+#define ARENA_FRAGMENT_SIZE (16384 - sizeof(void*))
+#define MINIMUM_BYTE_CODES 3
 
-/* Temporary data structure for processing the patterns. */
-typedef struct pattern_data {
-    mpm_uint32 flags;
+typedef struct rule_index_list {
+    struct rule_index_list *next;
     mpm_uint32 rule_index;
-    mpm_size length;
-    mpm_uint32 hash;
-    struct pattern_data *next;
-    struct pattern_data *same_next;
-    mpm_char8 *string;
-    mpm_re *re;
-} pattern_data;
+} rule_index_list;
 
-static void free_pattern_list(pattern_data *pattern_list, pattern_data *pattern_list_end)
+typedef struct sub_pattern_list {
+    struct sub_pattern_list *next;
+    struct sub_pattern_list *hash_next;
+    rule_index_list *rule_indices;
+    struct sub_pattern_list *left_child;
+    struct sub_pattern_list *right_child;
+    mpm_byte_code *byte_code;
+    mpm_char8 *from;
+    mpm_uint32 hash;
+    mpm_uint32 length;
+    mpm_uint32 last_rule_index;
+    float strength;
+    float priority;
+} sub_pattern_list;
+
+typedef struct mpm_arena_fragment {
+    struct mpm_arena_fragment *next;
+    mpm_uint8 data[ARENA_FRAGMENT_SIZE];
+} mpm_arena_fragment;
+
+typedef struct mpm_arena {
+    mpm_arena_fragment *first;
+    mpm_arena_fragment *last;
+    mpm_size consumed_size;
+
+    /* Other members. */
+    sub_pattern_list **map;
+    sub_pattern_list *first_pattern;
+    mpm_uint32 mask;
+    mpm_uint32 count;
+    mpm_uint32 rule_index;
+} mpm_arena;
+
+/* ----------------------------------------------------------------------- */
+/*                                   Arena.                                */
+/* ----------------------------------------------------------------------- */
+
+static void * arena_malloc(mpm_arena *arena, mpm_size size)
 {
-    pattern_data *pattern = pattern_list;
-    while (pattern < pattern_list_end) {
-        if (pattern->re)
-            mpm_free(pattern->re);
-        pattern++;
+    void *data;
+    mpm_arena_fragment *new_fragment;
+
+    /* Should never happen. */
+    if (size >= ARENA_FRAGMENT_SIZE)
+        return NULL;
+
+    if (arena->consumed_size + size <= ARENA_FRAGMENT_SIZE) {
+        data = arena->last->data + arena->consumed_size;
+        arena->consumed_size += size;
+        return data;
     }
-    free(pattern_list);
+
+    new_fragment = (mpm_arena_fragment *)malloc(sizeof(mpm_arena_fragment));
+    if (!new_fragment)
+        return NULL;
+
+    arena->last->next = new_fragment;
+    arena->last = new_fragment;
+    new_fragment->next = NULL;
+    arena->consumed_size = size;
+    return new_fragment->data;
 }
+
+static void free_arena(mpm_arena *arena)
+{
+    mpm_arena_fragment *current = arena->first;
+    mpm_arena_fragment *next;
+
+    while (current) {
+        next = current->next;
+        free(current);
+        current = next;
+    }
+    if (arena->map)
+        free(arena->map);
+}
+
+/* ----------------------------------------------------------------------- */
+/*                               Hash table.                               */
+/* ----------------------------------------------------------------------- */
 
 static mpm_uint32 compute_hash(mpm_uint8 *data_ptr, mpm_size size)
 {
@@ -72,532 +135,395 @@ static mpm_uint32 compute_hash(mpm_uint8 *data_ptr, mpm_size size)
     return hash;
 }
 
-static void insert_pattern(pattern_data *pattern, pattern_data **pattern_hash)
+static int realloc_hash_table(mpm_arena *arena)
 {
-    /* Hash table insert. */
-    int compare;
-    pattern_data *pattern_list = *pattern_hash;
+    sub_pattern_list **new_map;
+    sub_pattern_list *sub_pattern;
+    mpm_uint32 mask = arena->mask;
+    mpm_size size = (mask + 1) * sizeof(sub_pattern_list *);
 
-    while (pattern_list) {
-        if (pattern_list->hash == pattern->hash
-                && pattern_list->length == pattern->length
-                && pattern_list->flags == pattern->flags) {
+    free(arena->map);
+    arena->map = (sub_pattern_list **)malloc(size);
+    new_map = arena->map;
+    if (!new_map)
+        return MPM_NO_MEMORY;
 
-            if (pattern->re)
-                compare = memcmp(pattern->re->compile.patterns->word_code, pattern_list->re->compile.patterns->word_code, pattern->length);
-            else
-                compare = memcmp(pattern->string, pattern_list->string, pattern->length);
+    memset(new_map, 0, size);
+    sub_pattern = arena->first_pattern;
+    do {
+        sub_pattern->hash_next = new_map[sub_pattern->hash & mask];
+        new_map[sub_pattern->hash & mask] = sub_pattern;
+        sub_pattern = sub_pattern->next;
+    } while (sub_pattern);
 
-            if (compare == 0) {
-                /* Insert as first. */
-                pattern->flags |= SUB_PATTERN;
-                pattern->same_next = pattern_list->same_next;
-                pattern_list->same_next = pattern;
-                if (pattern->re) {
-                    mpm_free(pattern->re);
-                    pattern->re = NULL;
-                }
-                return;
-            }
-        }
-        pattern_list = pattern_list->next;
-    }
-
-    pattern->next = *pattern_hash;
-    *pattern_hash = pattern;
+    return MPM_NO_ERROR;
 }
 
-static int clustering(pattern_data *pattern_list, pattern_data *pattern_list_end, mpm_uint32 flags)
+/* ----------------------------------------------------------------------- */
+/*                      Sub-pattern build functions.                       */
+/* ----------------------------------------------------------------------- */
+
+static int mpm_private_get_byte_code(mpm_byte_code **byte_code, mpm_char8 *pattern, mpm_uint32 flags);
+
+static int compile_pattern(mpm_byte_code **byte_code, mpm_rule_pattern *rule)
 {
-    /* Creates regular expression groups. */
-    pattern_data *pattern;
-    pattern_data *last_pattern;
-    mpm_cluster_item *cluster_items;
-    mpm_cluster_item *cluster_item;
     mpm_re *re;
-    mpm_size count = 0;
-    mpm_uint32 group_id;
+    mpm_uint32 flags = (rule->flags & ~MPM_RULE_NEW);
 
-    pattern = pattern_list;
-    while (pattern < pattern_list_end) {
-        if (pattern->re)
-            count++;
-        pattern->next = NULL;
-        pattern++;
+    re = mpm_create();
+    if (!re)
+        return MPM_NO_MEMORY;
+
+    int error_code = mpm_add(re, rule->pattern, flags | MPM_ADD_TEST_RATING);
+    mpm_free(re);
+
+    if (error_code != MPM_NO_ERROR)
+        return error_code;
+
+    return mpm_private_get_byte_code(byte_code, rule->pattern, flags);
+}
+
+static int recursive_mark(mpm_arena *arena, sub_pattern_list *sub_pattern)
+{
+    int error_code;
+    rule_index_list *index;
+    struct sub_pattern_list *child;
+
+    index = (rule_index_list *)arena_malloc(arena, sizeof(rule_index_list));
+    if (!index)
+        return MPM_NO_MEMORY;
+    index->next = sub_pattern->rule_indices;
+    sub_pattern->rule_indices = index;
+    index->rule_index = arena->rule_index;
+    sub_pattern->last_rule_index = arena->rule_index;
+
+    /* Mark children. */
+    child = sub_pattern->left_child;
+    if (child && child->last_rule_index != arena->rule_index) {
+        error_code = recursive_mark(arena, child);
+        if (error_code != MPM_NO_ERROR)
+            return error_code;
     }
 
-#if defined MPM_VERBOSE && MPM_VERBOSE
-    if (flags & MPM_COMPILE_RULES_VERBOSE)
-        printf("Number of unique patterns: %d\n", (int)count);
-#endif
+    child = sub_pattern->right_child;
+    if (child && child->last_rule_index != arena->rule_index)
+        return recursive_mark(arena, child);
+    return MPM_NO_ERROR;
+}
 
-    if (count == 0)
-        return 1;
+static int process_pattern(mpm_arena *arena, mpm_byte_code *byte_code, mpm_uint32 from, mpm_uint32 to, sub_pattern_list **parent)
+{
+    int error_code;
+    mpm_char8 *byte_code_from;
+    sub_pattern_list *sub_pattern;
+    mpm_uint32 offset, byte_code_length;
+    mpm_uint32 left_offset, right_offset;
+    mpm_uint32 count1, count2;
+    mpm_uint32 hash;
 
-    cluster_items = (mpm_cluster_item *)malloc(count * sizeof(mpm_cluster_item));
-    if (!cluster_items)
-        return 0;
+    if (from >= to)
+        return MPM_INTERNAL_ERROR;
 
-    cluster_item = cluster_items;
-    pattern = pattern_list;
-    while (pattern < pattern_list_end) {
-        if (pattern->re) {
-            cluster_item->re = pattern->re;
-            cluster_item->data = pattern;
-            cluster_item++;
+    byte_code_length = byte_code->byte_code_data[from].byte_code_length;
+    if (from + byte_code_length == to) {
+        /* Likely a bracketed expression. Trim brackets. */
+        offset = from + 1;
+        while (1) {
+            if (offset >= to)
+                break;
+            if (byte_code->byte_code_data[offset].byte_code_length) {
+                from = offset;
+                while (1) {
+                    /* This case should never happen. */
+                    if (offset >= to)
+                        return MPM_NO_ERROR;
+                    if (!byte_code->byte_code_data[offset].byte_code_length)
+                        break;
+                    offset = offset + byte_code->byte_code_data[offset].byte_code_length;
+                }
+                to = offset;
+                break;
+            }
+            offset++;
         }
-        pattern++;
     }
 
-    if (mpm_clustering(cluster_items, count, (flags & MPM_COMPILE_RULES_VERBOSE) ? MPM_CLUSTERING_VERBOSE : 0) != MPM_NO_ERROR) {
-        free(cluster_items);
-        return 0;
+    byte_code_from = byte_code->byte_code + from;
+    byte_code_length = to - from;
+    hash = compute_hash(byte_code_from, byte_code_length);
+    sub_pattern = arena->map[hash & arena->mask];
+    while (sub_pattern) {
+        if (sub_pattern->hash == hash && sub_pattern->length == byte_code_length
+                && memcmp(sub_pattern->from, byte_code_from, byte_code_length) == 0) {
+            if (sub_pattern->last_rule_index == arena->rule_index)
+                return MPM_NO_ERROR;
+            return recursive_mark(arena, sub_pattern);
+        }
+        sub_pattern = sub_pattern->hash_next;
     }
 
-    cluster_item = cluster_items;
-    group_id = (mpm_uint32)-1;
+    sub_pattern = (sub_pattern_list *)arena_malloc(arena, sizeof(sub_pattern_list));
+    if (!sub_pattern)
+        return MPM_NO_MEMORY;
+    sub_pattern->left_child = NULL;
+    sub_pattern->right_child = NULL;
+    sub_pattern->hash = hash;
+    sub_pattern->from = byte_code_from;
+    sub_pattern->byte_code = byte_code;
+    sub_pattern->length = byte_code_length;
+    sub_pattern->last_rule_index = arena->rule_index;
+    sub_pattern->strength = 1.0;
+    sub_pattern->priority = 0.0;
+
+    if (parent)
+        *parent = sub_pattern;
+
+    /* Append this rule index. */
+    sub_pattern->rule_indices = (rule_index_list *)arena_malloc(arena, sizeof(rule_index_list));
+    if (!sub_pattern->rule_indices)
+        return MPM_NO_MEMORY;
+    sub_pattern->rule_indices->next = NULL;
+    sub_pattern->rule_indices->rule_index = arena->rule_index;
+
+    /* Update arena. */
+    hash &= arena->mask;
+    sub_pattern->hash_next = arena->map[hash];
+    arena->map[hash] = sub_pattern;
+    sub_pattern->next = arena->first_pattern;
+    arena->first_pattern = sub_pattern;
+    arena->count++;
+
+    left_offset = from + byte_code->byte_code_data[from].byte_code_length;
+    right_offset = from;
+    while (1) {
+        byte_code_length = byte_code->byte_code_data[right_offset].byte_code_length;
+        if (right_offset + byte_code_length >= to)
+            break;
+        right_offset += byte_code_length;
+    }
+
+    offset = from;
+    count1 = 0;
+    count2 = 0;
+    while (offset < to) {
+        if (byte_code->byte_code_data[offset].byte_code_length) {
+            if (offset >= left_offset)
+                count1++;
+            if (offset < right_offset)
+                count2++;
+        }
+        offset++;
+    }
+
+    if (count1 >= MINIMUM_BYTE_CODES) {
+        error_code = process_pattern(arena, byte_code, left_offset, to, &sub_pattern->left_child);
+        if (error_code != MPM_NO_ERROR)
+            return error_code;
+    }
+
+    if (count2 >= MINIMUM_BYTE_CODES)
+        return process_pattern(arena, byte_code, from, right_offset, &sub_pattern->right_child);
+
+    return MPM_NO_ERROR;
+}
+
+/* ----------------------------------------------------------------------- */
+/*                     Sub-pattern search functions.                       */
+/* ----------------------------------------------------------------------- */
+
+static void compute_strength(sub_pattern_list *sub_pattern, float *rule_strength)
+{
+    rule_index_list *index;
+    float sum;
 
     do {
-        pattern = (pattern_data *)cluster_item->data;
-        if (cluster_item->group_id != group_id) {
-            group_id = cluster_item->group_id;
-            re = cluster_item->re;
-        } else {
-            if (mpm_combine(&re, cluster_item->re, 0) != MPM_NO_ERROR) {
-                free(cluster_items);
-                return 0;
-            }
-            last_pattern->next = (pattern_data *)cluster_item->data;
-            pattern->flags |= SUB_PATTERN;
-            pattern->re = NULL;
-        }
-        last_pattern = pattern;
-        cluster_item++;
-    } while (--count > 0);
-
-    free(cluster_items);
-    return 1;
-}
-
-static mpm_uint32 * compute_rule_list(pattern_list_item *pattern_list_begin, pattern_list_item *pattern_list_end, mpm_size rule_count, mpm_size *consumed_memory)
-{
-    mpm_uint32 *rule_indices;
-    mpm_uint32 *rule_index;
-    mpm_uint32 *touched_rules;
-    mpm_uint32 *touched_rule_end;
-    mpm_uint32 *touched_rule_ptr;
-    mpm_size touched_rule_size;
-    pattern_list_item *pattern_list;
-    pattern_data *pattern;
-    pattern_data *same_pattern;
-    mpm_size rule_list_size;
-    mpm_uint32 priority, bit_index;
-
-    /* Calculating rule list size. */
-    touched_rule_size = ((rule_count + 0x1f) & ~0x1f) >> 3;
-    touched_rules = (mpm_uint32 *)malloc(touched_rule_size);
-    if (!touched_rules)
-        return NULL;
-    touched_rule_end = touched_rules + (touched_rule_size >> 2);
-
-    rule_list_size = 0;
-    pattern_list = pattern_list_begin;
-    while (pattern_list < pattern_list_end) {
-        /* Calculating all touched rules. */
-        memset(touched_rules, 0, touched_rule_size);
-        pattern = pattern_list->u1.pattern;
+        sum = 0.0;
+        index = sub_pattern->rule_indices;
         do {
-            same_pattern = pattern;
-            do {
-                touched_rules[same_pattern->rule_index >> 5] |= 1 << (same_pattern->rule_index & 0x1f);
-                same_pattern = same_pattern->same_next;
-            } while (same_pattern);
-            pattern = pattern->next;
-        } while (pattern);
-
-        for (touched_rule_ptr = touched_rules; touched_rule_ptr < touched_rule_end; touched_rule_ptr++)
-            if (*touched_rule_ptr)
-                rule_list_size += 2 * sizeof(mpm_uint32);
-
-        pattern = pattern_list->u1.pattern;
-        do {
-            memset(touched_rules, 0, touched_rule_size);
-            same_pattern = pattern;
-            do {
-                touched_rules[same_pattern->rule_index >> 5] |= 1 << (same_pattern->rule_index & 0x1f);
-                same_pattern = same_pattern->same_next;
-            } while (same_pattern);
-
-            for (touched_rule_ptr = touched_rules; touched_rule_ptr < touched_rule_end; touched_rule_ptr++)
-                if (*touched_rule_ptr)
-                    rule_list_size += 2 * sizeof(mpm_uint32);
-            pattern = pattern->next;
-        } while (pattern);
-
-        pattern_list++;
-    }
-
-    if (consumed_memory)
-        *consumed_memory = sizeof(mpm_rule_list) + rule_list_size;
-
-    rule_indices = (mpm_uint32 *)malloc(rule_list_size);
-    if (!rule_indices) {
-        free(touched_rules);
-        return NULL;
-    }
-
-    rule_index = rule_indices;
-    pattern_list = pattern_list_begin;
-    while (pattern_list < pattern_list_end) {
-        memset(touched_rules, 0, touched_rule_size);
-        pattern = pattern_list->u1.pattern;
-        priority = 0;
-        do {
-            same_pattern = pattern;
-            do {
-                touched_rule_ptr = touched_rules + (same_pattern->rule_index >> 5);
-                bit_index = 1 << (same_pattern->rule_index & 0x1f);
-                if (!(*touched_rule_ptr & bit_index))
-                    priority++;
-                *touched_rule_ptr |= bit_index;
-                same_pattern = same_pattern->same_next;
-            } while (same_pattern);
-            pattern = pattern->next;
-        } while (pattern);
-
-        bit_index = 1;
-        for (touched_rule_ptr = touched_rule_end - 1; touched_rule_ptr >= touched_rules; touched_rule_ptr--)
-            if (*touched_rule_ptr) {
-                *rule_index++ = ((touched_rule_ptr - touched_rules) << 2) | (bit_index ? RULE_LIST_END : 0);
-                *rule_index++ = *touched_rule_ptr;
-                bit_index = 0;
-            }
-
-        pattern_list->rule_indices = rule_index;
-        pattern_list->priority = priority;
-
-        pattern = pattern_list->u1.pattern;
-        do {
-            memset(touched_rules, 0, touched_rule_size);
-            same_pattern = pattern;
-            do {
-                touched_rules[same_pattern->rule_index >> 5] |= 1 << (same_pattern->rule_index & 0x1f);
-                same_pattern = same_pattern->same_next;
-            } while (same_pattern);
-
-            for (touched_rule_ptr = touched_rules; touched_rule_ptr < touched_rule_end; touched_rule_ptr++)
-                if (*touched_rule_ptr) {
-                    *rule_index++ = (touched_rule_ptr - touched_rules) << 2;
-                    *rule_index++ = ~(*touched_rule_ptr);
-                }
-            pattern = pattern->next;
-            rule_index[-2] |= pattern ? PATTERN_LIST_END : RULE_LIST_END;
-        } while (pattern);
-        pattern_list++;
-    }
-
-    free(touched_rules);
-    return rule_indices;
-}
-
-static void heap_down(pattern_list_item *pattern_list_begin, mpm_size start, mpm_size end)
-{
-    pattern_list_item temp;
-    mpm_size child;
-    mpm_size swap;
-
-    while (1) {
-        child = start * 2 + 1;
-        if (child > end)
-            return;
-        swap = start;
-        if (pattern_list_begin[swap].priority > pattern_list_begin[child].priority)
-            swap = child;
-        if (child + 1 <= end && pattern_list_begin[swap].priority > pattern_list_begin[child + 1].priority)
-            swap = child + 1;
-        if (swap == start)
-            return;
-        temp = pattern_list_begin[start];
-        pattern_list_begin[start] = pattern_list_begin[swap];
-        pattern_list_begin[swap] = temp;
-        start = swap;
-    }
-}
-
-static void heap_sort(pattern_list_item *pattern_list_begin, mpm_size pattern_list_length)
-{
-    pattern_list_item temp;
-    mpm_size start;
-
-    if (pattern_list_length <= 1)
-        return;
-
-    start = (pattern_list_length - 2) >> 1;
-    pattern_list_length--;
-    while (1) {
-        heap_down(pattern_list_begin, start, pattern_list_length);
-        if (start == 0)
-            break;
-        start--;
-    }
-
-    while (1) {
-        temp = pattern_list_begin[0];
-        pattern_list_begin[0] = pattern_list_begin[pattern_list_length];
-        pattern_list_begin[pattern_list_length] = temp;
-
-        if (!--pattern_list_length)
-            return;
-        heap_down(pattern_list_begin, 0, pattern_list_length);
-    }
+            sum += rule_strength[index->rule_index];
+            index = index->next;
+        } while (index);
+        sub_pattern->priority = sum * sub_pattern->strength;
+        sub_pattern = sub_pattern->next;
+    } while (sub_pattern);
 }
 
 #if defined MPM_VERBOSE && MPM_VERBOSE
+static void print_pattern(sub_pattern_list *sub_pattern);
+#endif
 
-static void print_pattern_list(pattern_list_item *pattern_list, pattern_list_item *pattern_list_end)
+static void search_patterns(sub_pattern_list *first_sub_pattern, float *rule_strength, mpm_uint32 flags)
 {
-    pattern_data *pattern;
-    mpm_uint32 *rule_indices;
-    mpm_uint32 offset, bits;
-    int all_count, mpm_count;
+    float max_priority;
+    sub_pattern_list *sub_pattern;
+    sub_pattern_list *max;
+    int i;
 
-    all_count = pattern_list_end - pattern_list;
-    mpm_count = 0;
-    while (pattern_list < pattern_list_end) {
-        pattern = pattern_list->u1.pattern;
-        rule_indices = pattern_list->rule_indices;
-        if (pattern->re)
-            mpm_count++;
-        printf("\nNew mpm pattern. Priority: %d [rules: ", pattern_list->priority);
-        do {
-            rule_indices -= 2;
-            offset = (rule_indices[0] & PATTERN_LIST_MASK) * 8;
-            bits = rule_indices[1];
-            while (bits) {
-                if (bits & 0x1)
-                    printf(" %d", offset);
-                offset++;
-                bits >>= 1;
-            }
-        } while (!(rule_indices[0] & RULE_LIST_END));
-        printf("]\n");
+    compute_strength(first_sub_pattern, rule_strength);
 
-        rule_indices = pattern_list->rule_indices;
-        printf("  /%s/ in rule", pattern->string);
-        do {
-            offset = (rule_indices[0] & PATTERN_LIST_MASK) * 8;
-            bits = ~(rule_indices[1]);
-            while (bits) {
-                if (bits & 0x1)
-                    printf(" %d", offset);
-                offset++;
-                bits >>= 1;
+    for (i = 0; i < 10; i++) {
+        sub_pattern = first_sub_pattern;
+        max = sub_pattern;
+        max_priority = sub_pattern->priority;
+        sub_pattern = sub_pattern->next;
+
+        while (sub_pattern) {
+            if (sub_pattern->priority > max_priority) {
+                max = sub_pattern;
+                max_priority = sub_pattern->priority;
             }
-            if (rule_indices[0] & PATTERN_LIST_END) {
-                pattern = pattern->next;
-                printf("\n  /%s/ in rule", pattern->string);
-            }
-            rule_indices += 2;
-        } while (!(rule_indices[-2] & RULE_LIST_END));
-        printf("\n");
-        pattern_list++;
+            sub_pattern = sub_pattern->next;
+        }
+        if (max_priority == 0.0)
+            break;
+        print_pattern(max);
+        max->priority = 0.0;
     }
-    printf("\nTotal number of regular expressions: %d [mpm: %d pcre: %d] \n\n", all_count, mpm_count, all_count - mpm_count);
 }
 
+/* ----------------------------------------------------------------------- */
+/*                             Verbose functions.                          */
+/* ----------------------------------------------------------------------- */
+
+#if defined MPM_VERBOSE && MPM_VERBOSE
+static void print_pattern(sub_pattern_list *sub_pattern)
+{
+    mpm_uint32 offset = sub_pattern->from - sub_pattern->byte_code->byte_code;
+    mpm_uint32 end = offset + sub_pattern->length;
+    char *pattern = (char*)sub_pattern->byte_code->pattern;
+    mpm_byte_code_data *byte_code_data = sub_pattern->byte_code->byte_code_data;
+
+    printf("/");
+    while (offset < end) {
+        printf("%.*s", byte_code_data[offset].pattern_length, pattern + byte_code_data[offset].pattern_offset);
+        offset += byte_code_data[offset].byte_code_length;
+    }
+    printf("/ priority: %f\n", sub_pattern->priority);
+}
+
+static void print_arena_stats(mpm_arena *arena)
+{
+    mpm_arena_fragment *current = arena->first;
+    mpm_size consumption = 0;
+
+    while (current) {
+        consumption += ARENA_FRAGMENT_SIZE;
+        current = current->next;
+    }
+    printf("Total arena memory consumption: %ld\n", (long int)consumption);
+}
 #endif
 
 /* ----------------------------------------------------------------------- */
 /*                                 Main function.                          */
 /* ----------------------------------------------------------------------- */
 
-static int mpm_private_get_byte_code(mpm_byte_code **byte_code, mpm_char8 *pattern, mpm_uint32 flags);
-
 int mpm_compile_rules(mpm_rule_pattern *rules, mpm_size no_rule_patterns, mpm_rule_list **result_rule_list, mpm_size *consumed_memory, mpm_uint32 flags)
 {
-    pattern_data *pattern_list;
-    pattern_data *pattern_list_end;
-    pattern_data *pattern;
-    pattern_data **pattern_hash;
-    mpm_rule_list *rule_list;
-    pattern_list_item *pattern_reference;
-    mpm_uint32 *rule_indices;
-    mpm_size pattern_hash_mask;
-    mpm_size rule_count;
-    mpm_size last_consumed_memory;
-    mpm_size pattern_list_length;
-    mpm_rule_pattern *rules_end;
-    mpm_byte_code *byte_code;
-    mpm_re *re;
-    int result;
+    mpm_byte_code **byte_codes;
+    mpm_byte_code **byte_code;
+    mpm_byte_code **byte_code_end;
+    mpm_uint32 i, rule_count;
+    float *rule_strength;
+    int error_code = MPM_NO_MEMORY;
+    mpm_arena arena;
 
     if (!no_rule_patterns || !result_rule_list)
         return MPM_INVALID_ARGS;
     *result_rule_list = NULL;
 
-    /* Compile patterns if possible. */
-    pattern_list = (pattern_data *)malloc(no_rule_patterns * sizeof(pattern_data));
-    if (!pattern_list)
+    byte_codes = (mpm_byte_code **)malloc(no_rule_patterns * sizeof(mpm_byte_code *));
+    if (!byte_codes)
         return MPM_NO_MEMORY;
+    byte_code_end = byte_codes + no_rule_patterns;
+    memset(byte_codes, 0, no_rule_patterns * sizeof(mpm_byte_code *));
 
-    pattern_hash_mask = 1;
-    while (pattern_hash_mask < no_rule_patterns)
-        pattern_hash_mask <<= 1;
-    if (pattern_hash_mask > 4)
-        pattern_hash_mask >>= 1;
+    rule_strength = NULL;
+    arena.map = NULL;
+    arena.first = (mpm_arena_fragment *)malloc(sizeof(mpm_arena_fragment));
+    if (!arena.first)
+        goto leave;
+    arena.last = arena.first;
+    arena.consumed_size = 0;
 
-    pattern_hash = (pattern_data **)malloc(pattern_hash_mask * sizeof(pattern_data *));
-    if (!pattern_hash) {
-        free(pattern_list);
-        return MPM_NO_MEMORY;
-    }
-
-    memset(pattern_hash, 0, pattern_hash_mask * sizeof(pattern_data *));
-    pattern_hash_mask--;
-
-    rules_end = rules + no_rule_patterns;
-    pattern_list_end = pattern_list;
+    arena.mask = 64;
+    while (arena.mask < no_rule_patterns * 4)
+        arena.mask <<= 1;
+    i = arena.mask * sizeof(sub_pattern_list *);
+    arena.map = (sub_pattern_list **)malloc(i);
+    if (!arena.map)
+        goto leave;
+    memset(arena.map, 0, i);
+    arena.mask--;
+    arena.first_pattern = NULL;
+    arena.count = 0;
     rule_count = 0;
-    if (rules[0].flags & MPM_RULE_NEW)
-        rule_count--;
 
-    re = NULL;
-    while (rules < rules_end) {
-        /* Add a new item. */
-        if (rules->flags & MPM_RULE_NEW)
+    byte_code = byte_codes;
+    do {
+        if ((rule_count == 0) || (rules->flags & MPM_RULE_NEW)) {
+            arena.rule_index = rule_count;
             rule_count++;
-
-        if (!re) {
-            re = mpm_create();
-            if (!re) {
-                free_pattern_list(pattern_list, pattern_list_end);
-                free(pattern_hash);
-                return MPM_NO_MEMORY;
-            }
         }
 
-        pattern_list_end->flags = rules->flags & ~MPM_RULE_NEW;
-        pattern_list_end->rule_index = rule_count;
-        pattern_list_end->next = NULL;
-        pattern_list_end->same_next = NULL;
-        pattern_list_end->string = rules->pattern;
-        pattern_list_end->re = NULL;
-
-        switch (mpm_add(re, rules->pattern, pattern_list_end->flags | MPM_ADD_TEST_RATING)) {
+        error_code = compile_pattern(byte_code, rules);
+        switch (error_code) {
         case MPM_NO_ERROR:
-            pattern_list_end->re = re;
-            pattern_list_end->length = mpm_private_get_pattern_size(re->compile.patterns) - sizeof(mpm_re_pattern) + sizeof(mpm_uint32);
-            pattern_list_end->hash = compute_hash((mpm_uint8 *)re->compile.patterns->word_code, pattern_list_end->length);
-
-            result = mpm_private_get_byte_code(&byte_code, rules->pattern, pattern_list_end->flags);
-
-            /* Check whether it is already there. */
-            insert_pattern(pattern_list_end, pattern_hash + (pattern_list_end->hash & pattern_hash_mask));
-            pattern_list_end++;
-            re = NULL;
+            error_code = process_pattern(&arena, *byte_code, 0, (*byte_code)->byte_code_length, NULL);
+            if (error_code != MPM_NO_ERROR)
+                goto leave;
             break;
 
         case MPM_TOO_LOW_RATING:
         case MPM_UNSUPPORTED_PATTERN:
-            /* We ignore these patterns. */
+            /* Ignore these patterns. */
             break;
 
         default:
-            mpm_free(re);
-            free_pattern_list(pattern_list, pattern_list_end);
-            free(pattern_hash);
-            return MPM_INVALID_PATTERN;
+            goto leave;
         }
+
+        if ((arena.count << 1) >= arena.mask) {
+            arena.mask = (arena.mask << 1) | 0x1;
+            error_code = realloc_hash_table(&arena);
+            if (error_code != MPM_NO_ERROR)
+                goto leave;
+        }
+        byte_code++;
         rules++;
-    }
-
-    if (re)
-        mpm_free(re);
-    free(pattern_hash);
-
-    rule_count++;
-    if (rule_count >= PATTERN_LIST_END) {
-        free_pattern_list(pattern_list, pattern_list_end);
-        return MPM_PATTERN_LIMIT;
-    }
-
-    /* Supported patterns are passed to the clustering algorithm. */
-    if (!clustering(pattern_list, pattern_list_end, flags)) {
-        free_pattern_list(pattern_list, pattern_list_end);
-        return MPM_NO_MEMORY;
-    }
-
-    /* Ordering by priority level. */
-    pattern = pattern_list;
-    pattern_list_length = 0;
-    while (pattern < pattern_list_end) {
-        if (!(pattern->flags & SUB_PATTERN))
-            pattern_list_length++;
-        pattern++;
-    }
-
-    rule_list = (mpm_rule_list *)malloc(sizeof(mpm_rule_list) + (pattern_list_length - 1) * sizeof(pattern_list_item));
-    if (!rule_list) {
-        free_pattern_list(pattern_list, pattern_list_end);
-        return MPM_NO_MEMORY;
-    }
-
-    pattern_reference = rule_list->pattern_list;
-    pattern = pattern_list;
-    while (pattern < pattern_list_end) {
-        if (!(pattern->flags & SUB_PATTERN)) {
-            pattern_reference->u1.pattern = pattern;
-            pattern_reference++;
-        }
-        pattern++;
-    }
-
-    rule_indices = compute_rule_list(rule_list->pattern_list, rule_list->pattern_list + pattern_list_length, rule_count, consumed_memory);
-    if (!rule_indices) {
-        free(rule_list);
-        free_pattern_list(pattern_list, pattern_list_end);
-        return MPM_NO_MEMORY;
-    }
-
-    heap_sort(rule_list->pattern_list, pattern_list_length);
+    } while (byte_code < byte_code_end);
+    error_code = MPM_NO_MEMORY;
 
 #if defined MPM_VERBOSE && MPM_VERBOSE
-    if (flags & MPM_COMPILE_RULES_VERBOSE)
-        print_pattern_list(rule_list->pattern_list, rule_list->pattern_list + pattern_list_length);
+    if (flags & MPM_COMPILE_RULES_VERBOSE_STATS)
+        print_arena_stats(&arena);
 #endif
 
-    rule_list->rule_indices = rule_indices;
-    rule_list->pattern_list_length = pattern_list_length;
-    rule_list->rule_count = rule_count;
-    rule_list->result_length = ((rule_count - 1) & ~0x1f) >> 3;
-    rule_list->result_last_word = (rule_count & 0x1f) == 0 ? 0xffffffff : (1 << (rule_count & 0x1f)) - 1;
+    free(arena.map);
+    arena.map = NULL;
 
-    pattern_reference = rule_list->pattern_list;
-    while (pattern_list_length--) {
-        pattern_reference->u1.re = pattern_reference->u1.pattern->re;
-        pattern_reference++;
+    rule_strength = (float *)malloc(rule_count * sizeof(float));
+    if (!rule_strength)
+        goto leave;
+
+    for (i = 0; i < rule_count; i++)
+        rule_strength[i] = 1.0;
+
+    search_patterns(arena.first_pattern, rule_strength, flags);
+
+    error_code = MPM_NO_ERROR;
+leave:
+    byte_code = byte_codes;
+    while (byte_code < byte_code_end) {
+        if (*byte_code)
+            free(*byte_code);
+        byte_code++;
     }
-
-    free(pattern_list);
-
-    pattern_list_length = rule_list->pattern_list_length;
-    pattern_reference = rule_list->pattern_list;
-    pattern_hash_mask = 0;
-    while (pattern_list_length--) {
-        pattern_hash_mask |= (mpm_compile(pattern_reference->u1.re, &last_consumed_memory, (flags & MPM_COMPILE_RULES_VERBOSE_STATS) ? MPM_COMPILE_VERBOSE_STATS : 0) != MPM_NO_ERROR);
-        if (consumed_memory)
-            *consumed_memory += last_consumed_memory;
-        pattern_reference++;
-    }
-
-    /* Any error occured. */
-    if (pattern_hash_mask) {
-        mpm_rule_list_free(rule_list);
-        return MPM_NO_MEMORY;
-    }
-
-    *result_rule_list = rule_list;
-    return MPM_NO_ERROR;
+    free(byte_codes);
+    free_arena(&arena);
+    if (rule_strength)
+        free(rule_strength);
+    return error_code;
 }
 
 #include "mpm_byte_code.c"

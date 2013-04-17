@@ -120,14 +120,11 @@ struct mpm_re_internal {
     };
 };
 
-struct pattern_data;
-
 /* Each pattern set contains an mpm_re pattern. */
 typedef struct pattern_list_item {
     mpm_uint32 *rule_indices;
     mpm_uint32 priority;
     union {
-        struct pattern_data *pattern;
         mpm_re *re;
     } u1;
 } pattern_list_item;
@@ -142,7 +139,9 @@ struct mpm_rule_list_internal {
 };
 
 typedef struct mpm_byte_code_data {
+    /* Total length (may include other byte codes). */
     mpm_uint32 byte_code_length;
+    /* For printing sub-patterns. */
     mpm_uint32 pattern_offset;
     mpm_uint32 pattern_length;
 } mpm_byte_code_data;
@@ -150,6 +149,8 @@ typedef struct mpm_byte_code_data {
 typedef struct mpm_byte_code {
     mpm_uint8 *byte_code;
     mpm_uint32 byte_code_length;
+    mpm_char8 *pattern;
+    mpm_uint32 flags;
     mpm_byte_code_data byte_code_data[1];
 } mpm_byte_code;
 
