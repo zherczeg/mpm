@@ -278,6 +278,15 @@ typedef struct mpm_rule_pattern {
     mpm_uint32 flags;      /*!< Any combination of MPM_ADD_ and MPM_RULE_ flags. */
 } mpm_rule_pattern;
 
+/*! Structure used only by mpm_create_rule_set. */
+typedef struct mpm_compile_rules_args {
+    mpm_uint32 no_selected_patterns;
+    float rule_strength_scale;
+    float inner_distance_scale;
+    float outer_distance_scale;
+    float length_scale;
+} mpm_compile_rules_args;
+
   /*  This flag is ignored if MPM_VERBOSE is undefined. */
   /*! Verbose the operations of mpm_compile_rules. */
 #define MPM_COMPILE_RULES_VERBOSE       0x001
@@ -290,7 +299,8 @@ struct mpm_rule_list_internal;
 /*! Public representation of a regular expression set. */
 typedef struct mpm_rule_list_internal mpm_rule_list;
 
-int mpm_compile_rules(mpm_rule_pattern *rules, mpm_size no_rule_patterns, mpm_rule_list **result_rule_list, mpm_size *consumed_memory, mpm_uint32 flags);
+int mpm_compile_rules(mpm_rule_pattern *rules, mpm_size no_rule_patterns, mpm_rule_list **result_rule_list,
+    mpm_size *consumed_memory, mpm_compile_rules_args *args, mpm_uint32 flags);
 
 /*! \fn int mpm_compile_rules(mpm_rule_pattern *rules, mpm_size no_rule_patterns, mpm_rule_list **result_rule_list, mpm_uint32 flags);
  *  \brief Compiles a rule set to an internal representation
@@ -300,6 +310,7 @@ int mpm_compile_rules(mpm_rule_pattern *rules, mpm_size no_rule_patterns, mpm_ru
  *  \param consumed_memory if this argument is non-NULL, it contains the memory
  *                         consumption of the machine when MPM_NO_ERROR is returned.
  *                         Otherwise its value is undefined.
+ *  \param args a valid mpm_compile_rules_args or NULL for using the default options.
  *  \param flags flags started by MPM_COMPILE_RULES_ prefix.
  *  \return MPM_NO_ERROR on success.
  */

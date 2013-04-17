@@ -23,6 +23,7 @@
 
 #include "mpm_internal.h"
 #include "mpm_pcre_internal.h"
+#include <math.h>
 
 /* ----------------------------------------------------------------------- */
 /*                          Defines and structures.                        */
@@ -78,6 +79,7 @@ typedef struct mpm_arena {
     mpm_size consumed_size;
 
     /* Other members. */
+    mpm_compile_rules_args args;
     sub_pattern_list **map;
     sub_pattern_list *first_pattern;
     re_list *first_re;
@@ -193,6 +195,9 @@ static int compile_pattern(mpm_byte_code **byte_code, mpm_rule_pattern *rule)
     mpm_re *re = mpm_create();
     mpm_uint32 flags = (rule->flags & ~MPM_RULE_NEW);
     int error_code;
+
+    if (GET_FIXED_SIZE(flags) > 0)
+        flags |= MPM_ADD_CASELESS;
 
     if (!re)
         return MPM_NO_MEMORY;
@@ -352,12 +357,9 @@ static int process_pattern(mpm_arena *arena, mpm_byte_code *byte_code, mpm_uint3
 /*                     Sub-pattern search functions.                       */
 /* ----------------------------------------------------------------------- */
 
-#if defined MPM_VERBOSE && MPM_VERBOSE
-static void print_pattern(sub_pattern_list *sub_pattern);
-#endif
-
-static void compute_strength(sub_pattern_list *sub_pattern, float *rule_strength)
+static void compute_strength(mpm_arena *arena, float *rule_strength)
 {
+    sub_pattern_list *sub_pattern = arena->first_pattern;
     rule_index_list *index;
     float sum;
 
@@ -368,12 +370,13 @@ static void compute_strength(sub_pattern_list *sub_pattern, float *rule_strength
             sum += rule_strength[index->rule_index];
             index = index->next;
         } while (index);
-        sub_pattern->u.s2.priority = sum * sub_pattern->u.s2.strength * ((float)(sub_pattern->length - 1) / 4.0 + 1.0);
+        sub_pattern->u.s2.priority = sum * sub_pattern->u.s2.strength
+            * (sqrt(sub_pattern->length) * arena->args.length_scale);
         sub_pattern = sub_pattern->next;
     } while (sub_pattern);
 }
 
-static mpm_uint32 recursive_distance_down(sub_pattern_list *sub_pattern)
+static mpm_uint32 recursive_outer_distance(mpm_arena *arena, sub_pattern_list *sub_pattern)
 {
     mpm_uint32 value, left_child = (0 << 1), right_child = (0 << 1);
 
@@ -381,10 +384,10 @@ static mpm_uint32 recursive_distance_down(sub_pattern_list *sub_pattern)
         return sub_pattern->u.s2.distance & ~0x1;
 
     if (sub_pattern->left_child)
-        left_child = recursive_distance_down(sub_pattern->left_child);
+        left_child = recursive_outer_distance(arena, sub_pattern->left_child);
 
     if (sub_pattern->right_child)
-        right_child = recursive_distance_down(sub_pattern->right_child);
+        right_child = recursive_outer_distance(arena, sub_pattern->right_child);
 
     if (left_child == (0 << 1) && right_child == (0 << 1))
         value = (0 << 1);
@@ -393,26 +396,26 @@ static mpm_uint32 recursive_distance_down(sub_pattern_list *sub_pattern)
     else
         value = left_child + (1 << 1);
 
-    if (value > (0 << 1)) {
-        sub_pattern->u.s2.strength *= 0.75;
-    }
+    if (value > (0 << 1))
+        sub_pattern->u.s2.strength *= sqrt((float)(value >> 1)) * arena->args.outer_distance_scale;
 
     sub_pattern->u.s2.distance = value | 0x1;
     return value;
 }
 
-static void recursive_distance_up(sub_pattern_list *sub_pattern)
+static void recursive_inner_distance(mpm_arena *arena, sub_pattern_list *sub_pattern)
 {
-    sub_pattern->u.s2.strength *= 0.25;
+    sub_pattern->u.s2.strength *= arena->args.inner_distance_scale;
 
     if (sub_pattern->left_child)
-        recursive_distance_up(sub_pattern->left_child);
+        recursive_inner_distance(arena, sub_pattern->left_child);
     if (sub_pattern->right_child)
-        recursive_distance_up(sub_pattern->right_child);
+        recursive_inner_distance(arena, sub_pattern->right_child);
 }
 
-static mpm_uint32 update_strengths(sub_pattern_list *current, sub_pattern_list *sub_pattern, float *rule_strength, mpm_uint32 *new_cover_ptr)
+static mpm_uint32 update_strengths(mpm_arena *arena, sub_pattern_list *sub_pattern, float *rule_strength, mpm_uint32 *new_cover_ptr)
 {
+    sub_pattern_list *current = arena->first_pattern;
     rule_index_list *rule_index = sub_pattern->rule_indices;
     mpm_uint32 new_cover = 0, total_cover = 0;
 
@@ -420,7 +423,7 @@ static mpm_uint32 update_strengths(sub_pattern_list *current, sub_pattern_list *
         total_cover++;
         if (rule_strength[rule_index->rule_index] == 1.0)
             new_cover++;
-        rule_strength[rule_index->rule_index] *= 0.25;
+        rule_strength[rule_index->rule_index] *= arena->args.rule_strength_scale;
         rule_index = rule_index->next;
     } while (rule_index);
 
@@ -428,11 +431,11 @@ static mpm_uint32 update_strengths(sub_pattern_list *current, sub_pattern_list *
     sub_pattern->u.s2.strength = 0.0;
 
     do {
-        recursive_distance_down(current);
+        recursive_outer_distance(arena, current);
         current = current->next;
     } while (current);
 
-    recursive_distance_up(sub_pattern);
+    recursive_inner_distance(arena, sub_pattern);
 
     *new_cover_ptr = new_cover;
     return total_cover;
@@ -658,7 +661,7 @@ static void print_pattern(sub_pattern_list *sub_pattern)
         printf("%.*s", byte_code_data[offset].pattern_length, pattern + byte_code_data[offset].pattern_offset);
         offset += byte_code_data[offset].byte_code_length;
     }
-    printf("/ priority: %f strength: %f\n", sub_pattern->u.s2.priority, sub_pattern->u.s2.strength);
+    printf("/\n");
 }
 
 static void print_arena_stats(mpm_arena *arena)
@@ -678,7 +681,8 @@ static void print_arena_stats(mpm_arena *arena)
 /*                                 Main function.                          */
 /* ----------------------------------------------------------------------- */
 
-int mpm_compile_rules(mpm_rule_pattern *rules, mpm_size no_rule_patterns, mpm_rule_list **result_rule_list, mpm_size *consumed_memory, mpm_uint32 flags)
+int mpm_compile_rules(mpm_rule_pattern *rules, mpm_size no_rule_patterns, mpm_rule_list **result_rule_list,
+    mpm_size *consumed_memory, mpm_compile_rules_args *args, mpm_uint32 flags)
 {
     mpm_byte_code **byte_codes;
     mpm_byte_code **byte_code;
@@ -688,7 +692,7 @@ int mpm_compile_rules(mpm_rule_pattern *rules, mpm_size no_rule_patterns, mpm_ru
     mpm_uint32 *rule_list;
     mpm_cluster_item *items;
     mpm_uint32 rule_count, i;
-    mpm_uint32 new_cover, total_cover;
+    mpm_uint32 new_cover, total_cover, all_cover;
     float *rule_strength;
     float max_priority;
     int error_code = MPM_NO_MEMORY;
@@ -699,6 +703,37 @@ int mpm_compile_rules(mpm_rule_pattern *rules, mpm_size no_rule_patterns, mpm_ru
         *consumed_memory = 0;
     if (!no_rule_patterns || !result_rule_list)
         return MPM_INVALID_ARGS;
+
+    if (args) {
+        arena.args = *args;
+        if (arena.args.no_selected_patterns < 1)
+            arena.args.no_selected_patterns = 1;
+        if (arena.args.rule_strength_scale < 0.0)
+            arena.args.rule_strength_scale = 0.0;
+        if (arena.args.rule_strength_scale > 1.0)
+            arena.args.rule_strength_scale = 1.0;
+        if (arena.args.inner_distance_scale < 0.0)
+            arena.args.inner_distance_scale = 0.0;
+        if (arena.args.outer_distance_scale < 0.0)
+            arena.args.outer_distance_scale = 0.0;
+        if (arena.args.length_scale < 0.0)
+            arena.args.length_scale = 0.0;
+    } else {
+        arena.args.rule_strength_scale = 0.25;
+        arena.args.inner_distance_scale = 0.25;
+        arena.args.outer_distance_scale = 0.5;
+        arena.args.length_scale = 1.0;
+        if (no_rule_patterns < 16)
+           arena.args.no_selected_patterns = 2;
+        else if (no_rule_patterns < 64)
+           arena.args.no_selected_patterns = 4;
+        else if (no_rule_patterns < 512)
+           arena.args.no_selected_patterns = 8;
+        else if (no_rule_patterns < 4096)
+           arena.args.no_selected_patterns = 16;
+        else
+           arena.args.no_selected_patterns = 32;
+    }
 
     byte_codes = (mpm_byte_code **)malloc(no_rule_patterns * sizeof(mpm_byte_code *));
     if (!byte_codes)
@@ -790,8 +825,10 @@ int mpm_compile_rules(mpm_rule_pattern *rules, mpm_size no_rule_patterns, mpm_ru
         pattern = pattern->next;
     } while (pattern);
 
-    for (i = 0; i < 4; i++) {
-        compute_strength(arena.first_pattern, rule_strength);
+    i = arena.args.no_selected_patterns;
+    all_cover = 0;
+    do {
+        compute_strength(&arena, rule_strength);
 
         pattern = arena.first_pattern;
         max = pattern;
@@ -811,19 +848,27 @@ int mpm_compile_rules(mpm_rule_pattern *rules, mpm_size no_rule_patterns, mpm_ru
             break;
 
         error_code = try_compile(&arena, max);
-        printf("compile: %d ", error_code);
-        print_pattern(max);
         max->u.s2.strength = 0.0;
-        if (error_code == MPM_TOO_LOW_RATING || error_code == MPM_EMPTY_PATTERN) {
-            i--;
+        if (error_code == MPM_TOO_LOW_RATING || error_code == MPM_EMPTY_PATTERN)
             continue;
-        }
         if (error_code != MPM_NO_ERROR)
             goto leave;
 
-        total_cover = update_strengths(arena.first_pattern, max, rule_strength, &new_cover);
-        printf("  total cover: %d new cover: %d\n", total_cover, new_cover);
-    }
+        total_cover = update_strengths(&arena, max, rule_strength, &new_cover);
+        all_cover += new_cover;
+#if defined MPM_VERBOSE && MPM_VERBOSE
+        if (flags & MPM_COMPILE_RULES_VERBOSE) {
+            printf("%d (%d new) rules are covered by ", total_cover, new_cover);
+            print_pattern(max);
+        }
+#endif
+        i--;
+    } while (i > 0);
+
+#if defined MPM_VERBOSE && MPM_VERBOSE
+    if (flags & MPM_COMPILE_RULES_VERBOSE)
+        printf("\n%d (%f%%) rules (from %d) are covered.\n\n", all_cover, (float)all_cover * 100.0 / (float)rule_count, rule_count);
+#endif
 
     if (!arena.re_count) {
         error_code = MPM_EMPTY_PATTERN;

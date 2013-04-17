@@ -805,12 +805,23 @@ static void new_feature(void)
 
     mpm_rule_list *rule_list;
     mpm_size consumed_memory;
+    mpm_compile_rules_args args = {
+        20,   /* no_selected_patterns */
+        0.15, /* rule_strength_scale */
+        0.25, /* inner_distance_scale */
+        0.7,  /* outer_distance_scale */
+        0.4   /* length_scale */
+    };
 
     printf("Processing %d rules:\n", (int)(sizeof(rules_global) / sizeof(mpm_rule_pattern)));
 
-    mpm_compile_rules(rules_global, sizeof(rules_global) / sizeof(mpm_rule_pattern), &rule_list, &consumed_memory, MPM_COMPILE_RULES_VERBOSE | MPM_COMPILE_RULES_VERBOSE_STATS);
+    mpm_compile_rules(rules_global, sizeof(rules_global) / sizeof(mpm_rule_pattern), &rule_list, &consumed_memory, &args, MPM_COMPILE_RULES_VERBOSE | MPM_COMPILE_RULES_VERBOSE_STATS);
+    if (!rule_list)
+        return;
 
     printf("MPM State machine size: %ld\n", (long)consumed_memory);
+
+    mpm_rule_list_free(rule_list);
 
 #else
 
