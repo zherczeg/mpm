@@ -782,6 +782,11 @@ static void new_feature(void)
         { (mpm_char8 *)"ab{4,17}c*d+xyz", MPM_RULE_NEW },
         { (mpm_char8 *)"(cccc|dddd){4,8}b{4,17}c*d+xyze{4,}", MPM_RULE_NEW },
         { (mpm_char8 *)"(ccc)*(ddd)+(eee)?xyz", MPM_RULE_NEW },
+#if 0
+        { (mpm_char8 *)"(eee)?x?y?z?abc", MPM_RULE_NEW },
+        { (mpm_char8 *)"(eee)?x?y?z?def", MPM_RULE_NEW },
+        { (mpm_char8 *)"(eee)?x?y?z?ghi", MPM_RULE_NEW },
+#endif
     };
     char *subject = "RULE_01 RULE_02 RULE_32 RULE_33 RULE_ RULE_35 AbDaBd";
 

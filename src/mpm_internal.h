@@ -170,6 +170,7 @@ typedef struct mpm_byte_code {
 #define PATTERN_LIST_MASK      0x0ffff
 
 /* Private, shared functions. */
+int mpm_private_add(mpm_re *re, mpm_char8 *pattern, mpm_uint32 byte_code_length, mpm_uint32 flags);
 int mpm_private_rating(mpm_re_pattern *pattern);
 void mpm_private_free_patterns(mpm_re_pattern *pattern);
 mpm_size mpm_private_get_pattern_size(mpm_re_pattern *pattern);

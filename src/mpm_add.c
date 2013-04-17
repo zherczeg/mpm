@@ -495,7 +495,7 @@ static int32_t * generate_range_repeat(int32_t *word_code, pcre_uchar *code)
 }
 
 /* Recursive function to generate the DFA representation. */
-static int32_t * generate_nfa_bracket(int32_t *word_code,
+static int32_t * generate_dfa_bracket(int32_t *word_code,
     pcre_uchar *code, pcre_uchar **bracket_end);
 
 static int32_t * generate_dfa(int32_t *word_code,
@@ -602,7 +602,7 @@ static int32_t * generate_dfa(int32_t *word_code,
         case OP_SBRA:
         case OP_BRAZERO:
         case OP_BRAMINZERO:
-            word_code = generate_nfa_bracket(word_code, code, &code);
+            word_code = generate_dfa_bracket(word_code, code, &code);
             break;
 
         case OP_MPM_SOD:
@@ -613,7 +613,7 @@ static int32_t * generate_dfa(int32_t *word_code,
     return word_code;
 }
 
-static int32_t * generate_nfa_bracket(int32_t *word_code,
+static int32_t * generate_dfa_bracket(int32_t *word_code,
     pcre_uchar *code, pcre_uchar **bracket_end)
 {
     int32_t *question_mark = NULL;
@@ -786,7 +786,7 @@ static mpm_uint32 * get_reached_states(int32_t *word_code, int32_t *from,
 /*                                Main function.                           */
 /* ----------------------------------------------------------------------- */
 
-int mpm_add(mpm_re *re, mpm_char8 *pattern, mpm_uint32 flags)
+int mpm_private_add(mpm_re *re, mpm_char8 *pattern, mpm_uint32 byte_code_length, mpm_uint32 flags)
 {
     const char *errptr;
     int erroffset, has_repeat;
@@ -827,6 +827,18 @@ int mpm_add(mpm_re *re, mpm_char8 *pattern, mpm_uint32 flags)
 
         /* Calculate the length of the pattern. */
         size *= (1 + CHAR_SET_SIZE);
+    } else if (byte_code_length > 0) {
+        size = get_nfa_size((pcre_uchar *)pattern, (pcre_uchar *)pattern + byte_code_length);
+
+        if (size == (mpm_uint32)-1)
+            return MPM_UNSUPPORTED_PATTERN;
+
+        /* Generate the regular expression. */
+        word_code_start = (int32_t *)malloc((size + 1) * sizeof(int32_t));
+        if (!word_code_start)
+            return MPM_NO_MEMORY;
+
+        word_code = generate_dfa(word_code_start, (pcre_uchar *)pattern, (pcre_uchar *)pattern + byte_code_length);
     } else {
         if (flags & MPM_ADD_CASELESS)
             options |= PCRE_CASELESS;
@@ -902,7 +914,7 @@ int mpm_add(mpm_re *re, mpm_char8 *pattern, mpm_uint32 flags)
             return MPM_NO_MEMORY;
         }
 
-        word_code = generate_nfa_bracket(word_code_start, byte_code_start, NULL);
+        word_code = generate_dfa_bracket(word_code_start, byte_code_start, NULL);
 
         /* The PCRE representation is not needed anymore. */
         mpm_pcre_free((pcre *)pcre_re);
@@ -1097,4 +1109,9 @@ int mpm_add(mpm_re *re, mpm_char8 *pattern, mpm_uint32 flags)
         re->flags |= RE_CHAR_SET_256;
 
     return MPM_NO_ERROR;
+}
+
+int mpm_add(mpm_re *re, mpm_char8 *pattern, mpm_uint32 flags)
+{
+    return mpm_private_add(re, pattern, 0, flags);
 }
