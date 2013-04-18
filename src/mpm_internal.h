@@ -136,6 +136,7 @@ struct mpm_rule_list_internal {
 };
 
 #define BYTE_CODE_IS_BRACKET 0x1
+#define BYTE_CODE_HAS_LOW_VALUE 0x2
 
 typedef struct mpm_byte_code_data {
     /* Total length (may include other byte codes). */

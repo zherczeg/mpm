@@ -201,6 +201,11 @@ static int mpm_private_get_byte_code(mpm_byte_code **byte_code, mpm_char8 *patte
         case OP_HSPACE:
         case OP_NOT_VSPACE:
         case OP_VSPACE:
+
+        case OP_TYPEEXACT:
+            special = 4;
+            /* Fall through. */
+
         case OP_CHAR:
         case OP_CHARI:
         case OP_NOT:
@@ -210,7 +215,6 @@ static int mpm_private_get_byte_code(mpm_byte_code **byte_code, mpm_char8 *patte
         case OP_EXACTI:
         case OP_NOTEXACT:
         case OP_NOTEXACTI:
-        case OP_TYPEEXACT:
             if (instrumented_byte_code[0] == OP_CALLOUT
                     && instrumented_byte_code[length + 2 + 2 * LINK_SIZE] >= OP_STAR
                     && instrumented_byte_code[length + 2 + 2 * LINK_SIZE] <= OP_TYPEMINUPTO) {
@@ -268,6 +272,7 @@ static int mpm_private_get_byte_code(mpm_byte_code **byte_code, mpm_char8 *patte
         case OP_TYPEMINQUERY:
         case OP_TYPEUPTO:
         case OP_TYPEMINUPTO:
+            special = 4;
             byte_code_data_ptr->byte_code_length = length;
             break;
 
@@ -276,6 +281,7 @@ static int mpm_private_get_byte_code(mpm_byte_code **byte_code, mpm_char8 *patte
             if (real_byte_code[length] >= OP_CRSTAR && real_byte_code[length] <= OP_CRMINRANGE)
                 length += PRIV(OP_lengths)[real_byte_code[length]];
             byte_code_data_ptr->byte_code_length = length;
+            special = 4;
             break;
 
         case OP_BRAZERO:
@@ -334,6 +340,8 @@ static int mpm_private_get_byte_code(mpm_byte_code **byte_code, mpm_char8 *patte
             }
             if (special == 1 || special == 2)
                 byte_code_data_ptr->pattern_length |= BYTE_CODE_IS_BRACKET;
+            if (special == 4)
+                byte_code_data_ptr->pattern_length |= BYTE_CODE_HAS_LOW_VALUE;
         }
         instrumented_byte_code += 2 + 2 * LINK_SIZE;
 

@@ -281,6 +281,7 @@ typedef struct mpm_rule_pattern {
 /*! Structure used only by mpm_create_rule_set. */
 typedef struct mpm_compile_rules_args {
     mpm_uint32 no_selected_patterns;
+    mpm_uint32 minimum_no_new_cover;
     float rule_strength_scale;
     float inner_distance_scale;
     float outer_distance_scale;

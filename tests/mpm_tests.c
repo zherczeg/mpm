@@ -778,6 +778,7 @@ static void new_feature(void)
     int error_code;
     mpm_compile_rules_args args = {
         2,     /* no_selected_patterns */
+        0,     /* minimum_no_new_cover */
         -1.0,  /* rule_strength_scale */
         -1.0,  /* inner_distance_scale */
         -1.0,  /* outer_distance_scale */
@@ -815,10 +816,11 @@ static void new_feature(void)
     mpm_size consumed_memory;
     mpm_compile_rules_args args = {
         20,   /* no_selected_patterns */
-        0.15, /* rule_strength_scale */
-        0.25, /* inner_distance_scale */
+        4,    /* minimum_no_new_cover */
+        0.2,  /* rule_strength_scale */
+        0.15, /* inner_distance_scale */
         0.3,  /* outer_distance_scale */
-        0.4   /* length_scale */
+        0.2   /* length_scale */
     };
 
     printf("Processing %d rules:\n", (int)(sizeof(rules_global) / sizeof(mpm_rule_pattern)));

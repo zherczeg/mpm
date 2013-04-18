@@ -239,6 +239,8 @@ static int recursive_mark(mpm_arena *arena, sub_pattern_list *sub_pattern)
     return MPM_NO_ERROR;
 }
 
+static void print_pattern(sub_pattern_list *sub_pattern);
+
 static int process_pattern(mpm_arena *arena, mpm_byte_code *byte_code, mpm_uint32 from, mpm_uint32 to, sub_pattern_list **parent)
 {
     int error_code;
@@ -283,6 +285,8 @@ static int process_pattern(mpm_arena *arena, mpm_byte_code *byte_code, mpm_uint3
     while (sub_pattern) {
         if (sub_pattern->u.s1.hash == hash && sub_pattern->length == byte_code_length
                 && memcmp(sub_pattern->from, byte_code_from, byte_code_length) == 0) {
+            if (parent)
+                *parent = sub_pattern;
             if (sub_pattern->u.s1.last_rule_index == arena->rule_index)
                 return MPM_NO_ERROR;
             return recursive_mark(arena, sub_pattern);
@@ -333,7 +337,11 @@ static int process_pattern(mpm_arena *arena, mpm_byte_code *byte_code, mpm_uint3
     count2 = 0;
     while (offset < to) {
         if (byte_code->byte_code_data[offset].byte_code_length) {
-            increase = (byte_code->byte_code_data[offset].pattern_length & BYTE_CODE_IS_BRACKET) ? MINIMUM_BYTE_CODES : 1;
+            increase = 1;
+            if (byte_code->byte_code_data[offset].pattern_length & BYTE_CODE_IS_BRACKET)
+                increase = MINIMUM_BYTE_CODES;
+            if (byte_code->byte_code_data[offset].pattern_length & BYTE_CODE_HAS_LOW_VALUE)
+                increase = 0;
             if (offset >= left_offset)
                 count1 += increase;
             if (offset < right_offset)
@@ -419,16 +427,26 @@ static void recursive_inner_distance(mpm_arena *arena, sub_pattern_list *sub_pat
         recursive_inner_distance(arena, sub_pattern->right_child);
 }
 
-static mpm_uint32 update_strengths(mpm_arena *arena, sub_pattern_list *sub_pattern, float *rule_strength, mpm_uint32 *new_cover_ptr)
+static mpm_uint32 compute_new_cover(rule_index_list *rule_index, float *rule_strength)
+{
+    mpm_uint32 new_cover = 0;
+
+    do {
+        if (rule_strength[rule_index->rule_index] == 1.0)
+            new_cover++;
+        rule_index = rule_index->next;
+    } while (rule_index);
+    return new_cover;
+}
+
+static mpm_uint32 update_strengths(mpm_arena *arena, sub_pattern_list *sub_pattern, float *rule_strength)
 {
     sub_pattern_list *current = arena->first_pattern;
     rule_index_list *rule_index = sub_pattern->rule_indices;
-    mpm_uint32 new_cover = 0, total_cover = 0;
+    mpm_uint32 total_cover = 0;
 
     do {
         total_cover++;
-        if (rule_strength[rule_index->rule_index] == 1.0)
-            new_cover++;
         rule_strength[rule_index->rule_index] *= arena->args.rule_strength_scale;
         rule_index = rule_index->next;
     } while (rule_index);
@@ -442,8 +460,6 @@ static mpm_uint32 update_strengths(mpm_arena *arena, sub_pattern_list *sub_patte
     } while (current);
 
     recursive_inner_distance(arena, sub_pattern);
-
-    *new_cover_ptr = new_cover;
     return total_cover;
 }
 
@@ -714,6 +730,7 @@ int mpm_compile_rules(mpm_rule_pattern *rules, mpm_size no_rule_patterns, mpm_ru
         arena.args = *args;
     } else {
         arena.args.no_selected_patterns = 0;
+        arena.args.minimum_no_new_cover = 0;
         arena.args.rule_strength_scale = -1.0;
         arena.args.inner_distance_scale = -1.0;
         arena.args.outer_distance_scale = -1.0;
@@ -865,6 +882,13 @@ int mpm_compile_rules(mpm_rule_pattern *rules, mpm_size no_rule_patterns, mpm_ru
         if (max_priority == 0.0)
             break;
 
+        new_cover = compute_new_cover(max->rule_indices, rule_strength);
+        if (new_cover < arena.args.minimum_no_new_cover) {
+            max->u.s2.strength = 0.0;
+            continue;
+        }
+        all_cover += new_cover;
+
         error_code = try_compile(&arena, max);
         max->u.s2.strength = 0.0;
         if (error_code == MPM_TOO_LOW_RATING || error_code == MPM_EMPTY_PATTERN)
@@ -872,8 +896,7 @@ int mpm_compile_rules(mpm_rule_pattern *rules, mpm_size no_rule_patterns, mpm_ru
         if (error_code != MPM_NO_ERROR)
             goto leave;
 
-        total_cover = update_strengths(&arena, max, rule_strength, &new_cover);
-        all_cover += new_cover;
+        total_cover = update_strengths(&arena, max, rule_strength);
 #if defined MPM_VERBOSE && MPM_VERBOSE
         if (flags & MPM_COMPILE_RULES_VERBOSE) {
             printf("%d (%d new) rules are covered by ", total_cover, new_cover);
