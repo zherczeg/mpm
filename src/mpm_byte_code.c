@@ -174,7 +174,7 @@ static int mpm_private_get_byte_code(mpm_byte_code **byte_code, mpm_char8 *patte
 
     byte_code_data_ptr->byte_code_length = byte_code_length;
     byte_code_data_ptr->pattern_offset = 0;
-    byte_code_data_ptr->pattern_length = fixed_size ? fixed_size : strlen((char *)pattern);
+    byte_code_data_ptr->pattern_length = ((fixed_size ? fixed_size : strlen((char *)pattern)) << 4) | BYTE_CODE_IS_BRACKET;
 
     if (real_byte_code[GET(real_byte_code, 1)] == OP_ALT)
         real_byte_code = byte_code_end;
@@ -326,12 +326,14 @@ static int mpm_private_get_byte_code(mpm_byte_code **byte_code, mpm_char8 *patte
         pattern_length = GET(instrumented_byte_code, 2 + LINK_SIZE);
         if (callout) {
             byte_code_data_ptr->pattern_offset = GET(instrumented_byte_code, 2);
-            byte_code_data_ptr->pattern_length = pattern_length;
+            byte_code_data_ptr->pattern_length = pattern_length << 4;
             if (fixed_size) {
                 /* Divide by four. */
                 byte_code_data_ptr->pattern_offset >>= 2;
                 byte_code_data_ptr->pattern_length >>= 2;
             }
+            if (special == 1 || special == 2)
+                byte_code_data_ptr->pattern_length |= BYTE_CODE_IS_BRACKET;
         }
         instrumented_byte_code += 2 + 2 * LINK_SIZE;
 

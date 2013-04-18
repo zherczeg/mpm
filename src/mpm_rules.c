@@ -246,7 +246,7 @@ static int process_pattern(mpm_arena *arena, mpm_byte_code *byte_code, mpm_uint3
     sub_pattern_list *sub_pattern;
     mpm_uint32 offset, byte_code_length;
     mpm_uint32 left_offset, right_offset;
-    mpm_uint32 count1, count2;
+    mpm_uint32 count1, count2, increase;
     mpm_uint32 hash;
 
     if (from >= to)
@@ -333,10 +333,11 @@ static int process_pattern(mpm_arena *arena, mpm_byte_code *byte_code, mpm_uint3
     count2 = 0;
     while (offset < to) {
         if (byte_code->byte_code_data[offset].byte_code_length) {
+            increase = (byte_code->byte_code_data[offset].pattern_length & BYTE_CODE_IS_BRACKET) ? MINIMUM_BYTE_CODES : 1;
             if (offset >= left_offset)
-                count1++;
+                count1 += increase;
             if (offset < right_offset)
-                count2++;
+                count2 += increase;
         }
         offset++;
     }
@@ -379,6 +380,7 @@ static void compute_strength(mpm_arena *arena, float *rule_strength)
 static mpm_uint32 recursive_outer_distance(mpm_arena *arena, sub_pattern_list *sub_pattern)
 {
     mpm_uint32 value, left_child = (0 << 1), right_child = (0 << 1);
+    float coefficient;
 
     if (sub_pattern->u.s2.distance & 0x1)
         return sub_pattern->u.s2.distance & ~0x1;
@@ -396,8 +398,12 @@ static mpm_uint32 recursive_outer_distance(mpm_arena *arena, sub_pattern_list *s
     else
         value = left_child + (1 << 1);
 
-    if (value > (0 << 1))
-        sub_pattern->u.s2.strength *= sqrt((float)(value >> 1)) * arena->args.outer_distance_scale;
+    if (value > (0 << 1)) {
+        coefficient = sqrt((float)(value >> 1)) * arena->args.outer_distance_scale;
+        if (coefficient > 1.0)
+            coefficient = 1.0;
+        sub_pattern->u.s2.strength *= coefficient;
+    }
 
     sub_pattern->u.s2.distance = value | 0x1;
     return value;
@@ -658,7 +664,7 @@ static void print_pattern(sub_pattern_list *sub_pattern)
 
     printf("/");
     while (offset < end) {
-        printf("%.*s", byte_code_data[offset].pattern_length, pattern + byte_code_data[offset].pattern_offset);
+        printf("%.*s", byte_code_data[offset].pattern_length >> 4, pattern + byte_code_data[offset].pattern_offset);
         offset += byte_code_data[offset].byte_code_length;
     }
     printf("/\n");
@@ -706,23 +712,15 @@ int mpm_compile_rules(mpm_rule_pattern *rules, mpm_size no_rule_patterns, mpm_ru
 
     if (args) {
         arena.args = *args;
-        if (arena.args.no_selected_patterns < 1)
-            arena.args.no_selected_patterns = 1;
-        if (arena.args.rule_strength_scale < 0.0)
-            arena.args.rule_strength_scale = 0.0;
-        if (arena.args.rule_strength_scale > 1.0)
-            arena.args.rule_strength_scale = 1.0;
-        if (arena.args.inner_distance_scale < 0.0)
-            arena.args.inner_distance_scale = 0.0;
-        if (arena.args.outer_distance_scale < 0.0)
-            arena.args.outer_distance_scale = 0.0;
-        if (arena.args.length_scale < 0.0)
-            arena.args.length_scale = 0.0;
     } else {
-        arena.args.rule_strength_scale = 0.25;
-        arena.args.inner_distance_scale = 0.25;
-        arena.args.outer_distance_scale = 0.5;
-        arena.args.length_scale = 1.0;
+        arena.args.no_selected_patterns = 0;
+        arena.args.rule_strength_scale = -1.0;
+        arena.args.inner_distance_scale = -1.0;
+        arena.args.outer_distance_scale = -1.0;
+        arena.args.length_scale = -1.0;
+    }
+
+    if (arena.args.no_selected_patterns < 1) {
         if (no_rule_patterns < 16)
            arena.args.no_selected_patterns = 2;
         else if (no_rule_patterns < 64)
@@ -734,6 +732,19 @@ int mpm_compile_rules(mpm_rule_pattern *rules, mpm_size no_rule_patterns, mpm_ru
         else
            arena.args.no_selected_patterns = 32;
     }
+
+    if (arena.args.rule_strength_scale < 0.0)
+        arena.args.rule_strength_scale = 0.25;
+    if (arena.args.rule_strength_scale > 1.0)
+        arena.args.rule_strength_scale = 1.0;
+    if (arena.args.inner_distance_scale < 0.0)
+        arena.args.inner_distance_scale = 0.25;
+    if (arena.args.inner_distance_scale > 1.0)
+        arena.args.inner_distance_scale = 1.0;
+    if (arena.args.outer_distance_scale < 0.0)
+        arena.args.outer_distance_scale = 0.5;
+    if (arena.args.length_scale < 0.0)
+        arena.args.length_scale = 1.0;
 
     byte_codes = (mpm_byte_code **)malloc(no_rule_patterns * sizeof(mpm_byte_code *));
     if (!byte_codes)
@@ -776,7 +787,13 @@ int mpm_compile_rules(mpm_rule_pattern *rules, mpm_size no_rule_patterns, mpm_ru
             rule_count++;
         }
 
-        error_code = compile_pattern(byte_code, rules);
+        if ((flags & MPM_COMPILE_RULES_IGNORE_FIXED) && (GET_FIXED_SIZE(rules->flags)))
+            error_code = MPM_UNSUPPORTED_PATTERN;
+        else if ((flags & MPM_COMPILE_RULES_IGNORE_REGEX) && (!GET_FIXED_SIZE(rules->flags)))
+            error_code = MPM_UNSUPPORTED_PATTERN;
+        else
+            error_code = compile_pattern(byte_code, rules);
+
         switch (error_code) {
         case MPM_NO_ERROR:
             error_code = process_pattern(&arena, *byte_code, 0, (*byte_code)->byte_code_length, NULL);
@@ -833,16 +850,17 @@ int mpm_compile_rules(mpm_rule_pattern *rules, mpm_size no_rule_patterns, mpm_ru
         pattern = arena.first_pattern;
         max = pattern;
         max_priority = pattern->u.s2.priority;
+        pattern->u.s2.distance = 0;
         pattern = pattern->next;
 
-        do {
+        while (pattern) {
             if (pattern->u.s2.priority > max_priority) {
                 max = pattern;
                 max_priority = pattern->u.s2.priority;
             }
             pattern->u.s2.distance = 0;
             pattern = pattern->next;
-        } while (pattern);
+        }
 
         if (max_priority == 0.0)
             break;

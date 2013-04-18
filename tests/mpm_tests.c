@@ -776,6 +776,13 @@ static void new_feature(void)
     mpm_rule_list *rule_list;
     mpm_uint32 result[2] = { 0, 0 };
     int error_code;
+    mpm_compile_rules_args args = {
+        2,     /* no_selected_patterns */
+        -1.0,  /* rule_strength_scale */
+        -1.0,  /* inner_distance_scale */
+        -1.0,  /* outer_distance_scale */
+        -1.0   /* length_scale */
+    };
 
     mpm_rule_pattern rules[] = {
         { (mpm_char8 *)"ab{4,17}c*d+xyz|h", MPM_RULE_NEW },
@@ -790,7 +797,8 @@ static void new_feature(void)
     };
     char *subject = "bbbbdxyz h";
 
-    error_code = mpm_compile_rules(rules, sizeof(rules) / sizeof(mpm_rule_pattern), &rule_list, NULL, MPM_COMPILE_RULES_VERBOSE | MPM_COMPILE_RULES_VERBOSE_STATS);
+    error_code = mpm_compile_rules(rules, sizeof(rules) / sizeof(mpm_rule_pattern), &rule_list,
+        NULL, &args, MPM_COMPILE_RULES_VERBOSE | MPM_COMPILE_RULES_VERBOSE_STATS);
     printf("mpm_compile_rules: %s\n", mpm_error_to_string(error_code));
     if (rule_list) {
         mpm_exec_list(rule_list, (mpm_char8 *)subject, strlen(subject), 0, result);
@@ -809,13 +817,14 @@ static void new_feature(void)
         20,   /* no_selected_patterns */
         0.15, /* rule_strength_scale */
         0.25, /* inner_distance_scale */
-        0.7,  /* outer_distance_scale */
+        0.3,  /* outer_distance_scale */
         0.4   /* length_scale */
     };
 
     printf("Processing %d rules:\n", (int)(sizeof(rules_global) / sizeof(mpm_rule_pattern)));
 
-    mpm_compile_rules(rules_global, sizeof(rules_global) / sizeof(mpm_rule_pattern), &rule_list, &consumed_memory, &args, MPM_COMPILE_RULES_VERBOSE | MPM_COMPILE_RULES_VERBOSE_STATS);
+    mpm_compile_rules(rules_global, sizeof(rules_global) / sizeof(mpm_rule_pattern), &rule_list,
+        &consumed_memory, &args, 0 | MPM_COMPILE_RULES_VERBOSE | MPM_COMPILE_RULES_VERBOSE_STATS | MPM_COMPILE_RULES_IGNORE_FIXED);
     if (!rule_list)
         return;
 

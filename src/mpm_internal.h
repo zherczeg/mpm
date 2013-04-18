@@ -135,11 +135,14 @@ struct mpm_rule_list_internal {
     pattern_list_item pattern_list[1];
 };
 
+#define BYTE_CODE_IS_BRACKET 0x1
+
 typedef struct mpm_byte_code_data {
     /* Total length (may include other byte codes). */
     mpm_uint32 byte_code_length;
     /* For printing sub-patterns. */
     mpm_uint32 pattern_offset;
+    /* The lowest four bits are reserved for flags. */
     mpm_uint32 pattern_length;
 } mpm_byte_code_data;
 

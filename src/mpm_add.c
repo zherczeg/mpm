@@ -828,6 +828,21 @@ int mpm_private_add(mpm_re *re, mpm_char8 *pattern, mpm_uint32 byte_code_length,
         /* Calculate the length of the pattern. */
         size *= (1 + CHAR_SET_SIZE);
     } else if (byte_code_length > 0) {
+        /* We support some special opcodes at the beginning and end of the internal representation.
+           We know that the pattern does not contain any alternative at the top level. */
+        switch (pattern[0]) {
+        case OP_SOD:
+        case OP_CIRC:
+            pattern_flags |= PATTERN_ANCHORED;
+            pattern[0] = OP_MPM_SOD;
+            break;
+
+        case OP_CIRCM:
+            pattern_flags |= PATTERN_MULTILINE;
+            pattern[0] = OP_MPM_CIRCM;
+            break;
+        }
+
         size = get_nfa_size((pcre_uchar *)pattern, (pcre_uchar *)pattern + byte_code_length);
 
         if (size == (mpm_uint32)-1)
@@ -882,15 +897,18 @@ int mpm_private_add(mpm_re *re, mpm_char8 *pattern, mpm_uint32 byte_code_length,
 
         /* Generate a simplified NFA representation. */
 
-        /* We support some special opcodes at the begining and end of the internal representation. */
+        /* We support some special opcodes at the beginning and end of the internal representation. */
         switch (byte_code_start[1 + LINK_SIZE]) {
         case OP_SOD:
         case OP_CIRC:
+            /* We let pcre to test whether it is an anchored pattern.
+               Still we doesnt't support /^a|^b/ */
             if (pattern_flags & PATTERN_ANCHORED)
                 byte_code_start[1 + LINK_SIZE] = OP_MPM_SOD;
             break;
 
         case OP_CIRCM:
+            /* Same as above. */
             if (pattern_flags & PATTERN_MULTILINE)
                 byte_code_start[1 + LINK_SIZE] = OP_MPM_CIRCM;
             if (pattern_flags & PATTERN_ANCHORED)

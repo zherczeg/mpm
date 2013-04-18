@@ -287,12 +287,16 @@ typedef struct mpm_compile_rules_args {
     float length_scale;
 } mpm_compile_rules_args;
 
+  /*! Ignore fixed patterns from the rule list. */
+#define MPM_COMPILE_RULES_IGNORE_FIXED  0x001
+  /*! Ignore regular expression (non-fixed) patterns from the rule list. */
+#define MPM_COMPILE_RULES_IGNORE_REGEX  0x002
   /*  This flag is ignored if MPM_VERBOSE is undefined. */
   /*! Verbose the operations of mpm_compile_rules. */
-#define MPM_COMPILE_RULES_VERBOSE       0x001
+#define MPM_COMPILE_RULES_VERBOSE       0x004
   /*  This flag is ignored if MPM_VERBOSE is undefined. */
   /*! Display some statistics (e.g: memory consumption) about the compiled patterns. */
-#define MPM_COMPILE_RULES_VERBOSE_STATS 0x002
+#define MPM_COMPILE_RULES_VERBOSE_STATS 0x008
 
 /*! Private representation of a regular expression set. */
 struct mpm_rule_list_internal;
